@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!--/************************************************************************
+				GPUTejas Simulator
+*****************************************************************************
+
+   Copyright 2014 Indian Institute of Technology, Delhi
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+******************************************************************************
+	Contributors:  Seep Goel, Geetika Malhotra, Harinder Pal
+*****************************************************************************/-->
+
+<Configuration>
+	
+	<!--Simulation Parameters-->
+	<Simulation>
+	    <MaxNumJavaThreads>8</MaxNumJavaThreads>		<!--Maximum number of Runnable Threads on simulator side-->
+	    <MaxNumBlocksPerJavaThread>2000</MaxNumBlocksPerJavaThread>
+	    <GPUType>Tesla</GPUType> 						<!--Type of Nvidia GPU: Tesla, Fermi-->
+		<ThreadsPerCTA>512</ThreadsPerCTA>
+	</Simulation>
+
+	<!--System Parameters-->
+	<System>
+		<NoOfTPC>8</NoOfTPC>				<!--Number of texture processor clusters in the system-->
+		
+		
+		<!--Texture Processor Cluster(TPC) parameters-->
+		<TPC>
+			<NoOfSM>8</NoOfSM> 				<!--Number of streaming multiprocessors in a TPC-->
+			
+		<!--Streaming multiprocessor(SM) Parameters-->
+			<SM>
+				<Frequency>3600</Frequency>		<!--Operating frequency of the core (in MHz)-->
+				<NoOfWarpSchedulers>2</NoOfWarpSchedulers>
+				<NoOfSP>8</NoOfSP> 				<!--Number of streaming processors in a SM-->
+				<WarpSize>32</WarpSize>			<!--Number of threads in a warp-->
+				
+				
+		<!--Streaming processor(SP) Parameters-->
+				<SP>
+					<NoOfThreadsSupported>32</NoOfThreadsSupported>
+				</SP>	
+				
+				<iCache nextLevel="" type="iCache" />
+				<constantCache nextLevel="" type="constantCache" />
+				<sharedCache nextLevel="" type="sharedCache" />
+				<!--L1Cache nextLevel="L2" type="dCache" /
+				Cache name="L2" nextLevel="" type="L2" /-->
+		
+			</SM>
+			
+			
+		</TPC>
+		
+		
+		<MainMemory>
+			<MainMemoryLatency>200</MainMemoryLatency>		
+			<MainMemoryFrequency>3600</MainMemoryFrequency>		
+			<MainMemoryPortType>FCFS</MainMemoryPortType>		
+			<MainMemoryAccessPorts>1</MainMemoryAccessPorts>	
+			<MainMemoryPortOccupancy>1</MainMemoryPortOccupancy>	
+		</MainMemory>
+		
+		<CacheBusLatency>1</CacheBusLatency>
+		
+	</System>
+	
+	<Library>
+		<iCache>
+			<WriteMode>WT</WriteMode>			
+			<LastLevel>Y</LastLevel>			
+			<BlockSize>32</BlockSize>			
+			<Associativity>4</Associativity>
+			<Size>4</Size>					
+			<Latency>1</Latency>				
+			<PortType>UL</PortType>				
+			<AccessPorts>1</AccessPorts>			
+			<PortOccupancy>1</PortOccupancy>		
+			<MultiPortingType>B</MultiPortingType>		
+			<Coherence>N</Coherence>			
+			<NumBuses>1</NumBuses>			
+			<MSHRSize>32</MSHRSize>
+			<BusOccupancy>0</BusOccupancy>
+			<Nuca>N</Nuca>						
+			<LeakagePower>0.1092</LeakagePower>
+			<ReadDynamicPower>0.33964264705</ReadDynamicPower>
+			<WriteDynamicPower>0.33964264705</WriteDynamicPower>
+		</iCache>
+		<constantCache>
+			<WriteMode>WT</WriteMode>			
+			<LastLevel>Y</LastLevel>			
+			<BlockSize>64</BlockSize>			
+			<Associativity>2</Associativity>
+			<Size>8</Size>					
+			<Latency>1</Latency>				
+			<PortType>UL</PortType>				
+			<AccessPorts>1</AccessPorts>			
+			<PortOccupancy>1</PortOccupancy>		
+			<MultiPortingType>B</MultiPortingType>		
+			<Coherence>N</Coherence>			
+			<NumBuses>1</NumBuses>			
+			<MSHRSize>32</MSHRSize>
+			<BusOccupancy>0</BusOccupancy>
+			<Nuca>N</Nuca>						
+			<LeakagePower>0.1092</LeakagePower>
+			<ReadDynamicPower>0.33964264705</ReadDynamicPower>
+			<WriteDynamicPower>0.33964264705</WriteDynamicPower>
+		</constantCache>
+		<sharedCache>
+			<WriteMode>WB</WriteMode>			
+			<LastLevel>Y</LastLevel>			
+			<BlockSize>64</BlockSize>			
+			<Associativity>8</Associativity>
+			<Size>32</Size>					
+			<Latency>2</Latency>				
+			<PortType>UL</PortType>				
+			<AccessPorts>1</AccessPorts>			
+			<PortOccupancy>1</PortOccupancy>		
+			<MultiPortingType>B</MultiPortingType>		
+			<Coherence>N</Coherence>			
+			<NumBuses>1</NumBuses>			
+			<MSHRSize>32</MSHRSize>
+			<BusOccupancy>0</BusOccupancy>
+			<Nuca>N</Nuca>						
+			<LeakagePower>0.1092</LeakagePower>
+			<ReadDynamicPower>0.33964264705</ReadDynamicPower>
+			<WriteDynamicPower>0.33964264705</WriteDynamicPower>
+		</sharedCache>
+		<dCache>
+			<WriteMode>WB</WriteMode>			
+			<LastLevel>N</LastLevel>			
+			<BlockSize>1024</BlockSize>			
+			<Associativity>1</Associativity>
+			<Size>1024</Size>					
+			<Latency>2</Latency>				
+			<PortType>FCFS</PortType>				
+			<AccessPorts>1</AccessPorts>			
+			<PortOccupancy>2</PortOccupancy>		
+			<MultiPortingType>B</MultiPortingType>		
+			<Coherence>N</Coherence>			
+			<NumBuses>1</NumBuses>			
+			<MSHRSize>32</MSHRSize>
+			<BusOccupancy>0</BusOccupancy>
+			<Nuca>N</Nuca>						
+			<LeakagePower>0.1092</LeakagePower>
+			<ReadDynamicPower>0.33964264705</ReadDynamicPower>
+			<WriteDynamicPower>0.33964264705</WriteDynamicPower>
+		</dCache>
+		<L2>
+			<WriteMode>WT</WriteMode>			
+			<LastLevel>Y</LastLevel>			
+			<BlockSize>64</BlockSize>			
+			<Associativity>16</Associativity>
+			<Size>8192</Size>				
+			<Latency>45</Latency>				
+			<PortType>UL</PortType>				
+			<AccessPorts>2</AccessPorts>			
+			<PortOccupancy>2</PortOccupancy>		
+			<MultiPortingType>B</MultiPortingType>		
+			<Coherence>N</Coherence>			
+			<NumBuses>1</NumBuses>				
+			<MSHRSize>8</MSHRSize>
+			<BusOccupancy>0</BusOccupancy>
+			<Nuca>N</Nuca>						
+			<LeakagePower>0.65904632352</LeakagePower>
+			<ReadDynamicPower>0.81449264705</ReadDynamicPower>
+			<WriteDynamicPower>0.81449264705</WriteDynamicPower>
+		</L2>
+	</Library>
+			
+	<OperationLatency>
+			<load>100</load>
+			<store>1</store>
+			<address>1</address>
+			<intALU>1</intALU>
+			<intMUL>2</intMUL>
+			<intDIV>4</intDIV>
+			<floatALU>1</floatALU>
+			<floatMUL>4</floatMUL>
+			<floatDIV>8</floatDIV>
+			<predicate>1</predicate>
+			<branch>1</branch>
+			<call>1</call>
+			<return>1</return>
+			<exit>1</exit>
+	</OperationLatency>
+	
+</Configuration>
