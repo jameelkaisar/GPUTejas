@@ -22,4 +22,6 @@ package config;
 
 public class SpConfig {
 	public static int NoOfThreadsSupported;
+	public static CacheConfig iCache = new CacheConfig();
+	public static CacheConfig dCache = new CacheConfig();
 }

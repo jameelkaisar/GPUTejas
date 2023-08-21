@@ -41,13 +41,15 @@ import memorysystem.NucaCache.NucaType;
 //import memorysystem.nuca.NucaCache.NucaType;
 import generic.*;
 import config.CacheConfig;
+import config.SimulationConfig;
+import config.SmConfig;
 import config.SystemConfig;
 import config.TpcConfig;
 import dram.*;
 
 public class MemorySystem
 {
-	static SM[][] cores;
+	static SP[][][] cores;
 	static Hashtable<String, Cache> cacheList;
 	public static Hashtable<String, Cache> cacheNameMappings = new Hashtable<String, Cache>();
 	public static MainMemoryDRAMController mainMemoryController;
@@ -142,8 +144,7 @@ public class MemorySystem
 		
 		String nextLevelIdStrOrig = c.cacheConfig.nextLevelId;
 		
-		
-			nextLevelName += "[0]";
+		nextLevelName += "[0]";
 		Cache nextLevelCache = cacheNameMappings.get(nextLevelName);
 		if(nextLevelCache==null) {
 			misc.Error.showErrorAndExit("Inside " + cacheName + ".\n" +
@@ -164,10 +165,10 @@ public class MemorySystem
 	}
 	
 	@SuppressWarnings("unused")
-	public static SMMemorySystem[][] initializeMemSys(SM[][] sms)
+	public static SPMemorySystem[][][] initializeMemSys(SP[][][] sps)
 	{
-		MemorySystem.cores = sms;
-		SMMemorySystem smMemSysArray[][] = new SMMemorySystem[sms.length][sms[0].length];
+		MemorySystem.cores = sps;
+		SPMemorySystem spMemSysArray[][][] = new SPMemorySystem[sps.length][sps[0].length][sps[0][0].length];
 		
 		System.out.println("initializing memory system...");
 		CacheConfig cacheParameterObj;
@@ -175,16 +176,22 @@ public class MemorySystem
 		cacheList = new Hashtable<String, Cache>(); //Declare the hash table for level 2 or greater caches
 		boolean flag = false;
 		mainMemoryController = new MainMemoryDRAMController(SystemConfig.mainMemoryConfig);
-		for (int i = 0; i < SystemConfig.NoOfTPC ; i++)
+		for (int i = 0; i < SystemConfig.NoOfTPC; i++)
 		{
-			for(int j =0 ; j<  TpcConfig.NoOfSM; j++)
+			for(int j = 0 ; j < TpcConfig.NoOfSM; j++)
 			{
-				int k=0;
+				//SMMemorySystem smMemSys = new SMMemorySystem(sps[i][j]);
+				//smMemSysArray[i][j] = smMemSys;
+				for(int k = 0; k < SmConfig.NoOfSP; k++)
 				{
-					SMMemorySystem smMemSys = null;
-					smMemSys = new GPUMemorySystem(sms[i][j], k);
-			
-					smMemSysArray[i][j] = smMemSys;
+					SPMemorySystem spMemSys = null;
+					if (k == 0)
+						spMemSys = new GPUMemorySystem(sps[i][j][k], null, null, null);
+					else if (SimulationConfig.GPUType == GpuType.Ampere)
+						spMemSys = new GPUMemorySystem(sps[i][j][k], spMemSysArray[i][j][0].getSharedCache(), spMemSysArray[i][j][0].getConstantCache(), spMemSysArray[i][j][0].getDataCache());
+					else
+						spMemSys = new GPUMemorySystem(sps[i][j][k], spMemSysArray[i][j][0].getSharedCache(), spMemSysArray[i][j][0].getConstantCache(), null);
+					spMemSysArray[i][j][k] = spMemSys;
 				}
 			}
 		}
@@ -261,14 +268,14 @@ public class MemorySystem
 				cacheToSetConnectedMSHR.populateConnectedMSHR();
 			} */ 
 			
-			return smMemSysArray;
+			return spMemSysArray;
 	
 			
 	}
 		
 	
 	
-		public static   CentralizedDirectoryCache getDirectoryCache()
+		public static CentralizedDirectoryCache getDirectoryCache()
 		{
 			return centralizedDirectory;
 		}

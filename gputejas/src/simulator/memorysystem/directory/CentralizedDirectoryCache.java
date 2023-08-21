@@ -36,7 +36,7 @@ import memorysystem.AddressCarryingEvent;
 import memorysystem.Cache;
 import memorysystem.MESI;
 import memorysystem.MemorySystem;
-import memorysystem.SMMemorySystem;
+import memorysystem.SPMemorySystem;
 import dram.MainMemoryDRAMController;
 public class CentralizedDirectoryCache extends Cache 
 {
@@ -58,7 +58,7 @@ public class CentralizedDirectoryCache extends Cache
 	public CacheConfig cacheConfig;
 	
 
-	public CentralizedDirectoryCache(CacheConfig cacheParameters, SMMemorySystem containingMemSys,
+	public CentralizedDirectoryCache(CacheConfig cacheParameters, SPMemorySystem containingMemSys,
 			int networkDelay) 
 	{
 		super(cacheParameters.cacheName, 0, cacheParameters, containingMemSys);
@@ -77,7 +77,7 @@ public class CentralizedDirectoryCache extends Cache
 		CentralizedDirectoryCache.networkDelay = networkDelay;
 		
 	}
-	public CentralizedDirectoryCache(CacheConfig cacheParameters, SMMemorySystem containingMemSys, int numCores, 
+	public CentralizedDirectoryCache(CacheConfig cacheParameters, SPMemorySystem containingMemSys, int numCores, 
 			int networkDelay) 
 	{
 		super(cacheParameters.cacheName, 0, cacheParameters, containingMemSys);
@@ -142,7 +142,7 @@ public class CentralizedDirectoryCache extends Cache
 			if(event.getClass()==AddressCarryingEvent.class &&
 				((AddressCarryingEvent)event).getAddress()>>blockSizeBits==48037994l)
 			{
-				System.out.println("DIRECTORY : globalTime = " + ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime() + 
+				System.out.println("DIRECTORY : globalTime = " + ArchitecturalComponent.getCores()[event.tpcId][event.smId][event.spId].clock.getCurrentTime() + 
 						"\teventTime = " + event.getEventTime() + "\t" + event.getRequestType() + 
 						"\t" + event.getRequestingElement() + 
 						"\tdirEntry = " + access(((AddressCarryingEvent)event).getAddress()));
@@ -200,13 +200,15 @@ public class CentralizedDirectoryCache extends Cache
 						
 			requestingCache.getPort().put(
 					new AddressCarryingEvent(
-						requestingCache.containingMemSys.getSM().getEventQueue(),
+						requestingCache.containingMemSys.getSP().getEventQueue(),
 						0, //requestingCache.getLatency() + getNetworkDelay(), FIXME: 
 						this, 
 						requestingCache,
 						RequestType.MESI_Invalidate, 
 						((AddressCarryingEvent)event).getAddress(),
-						requestingCache.containingMemSys.getSM().getTPC_number(), requestingCache.containingMemSys.getSM().getSM_number()));
+						requestingCache.containingMemSys.getSP().getTPC_number(),
+						requestingCache.containingMemSys.getSP().getSM_number(),
+						requestingCache.containingMemSys.getSP().getSP_number()));
 			
 			return;
 		}
@@ -502,7 +504,7 @@ public class CentralizedDirectoryCache extends Cache
 						ownerCache,
 						requestType, 
 						event.getAddress(),
-						(event).tpcId, (event).smId));
+						(event).tpcId, (event).smId, (event).spId));
 	}
 	
 	private void sendeventToSharers(DirectoryEntry dirEntry, RequestType requestType, Cache excludeThisCache)
@@ -518,14 +520,15 @@ public class CentralizedDirectoryCache extends Cache
 			
 			c.getPort().put(
 				new AddressCarryingEvent(
-					c.containingMemSys.getSM().getEventQueue(),
+					c.containingMemSys.getSP().getEventQueue(),
 					c.getLatency() + getNetworkDelay(),
 					this, 
 					c,
 					requestType, 
 					getCacheAddress(c, dirEntry.getAddress()),
-					c.containingMemSys.getSM().getTPC_number(),
-					c.containingMemSys.getSM().getSM_number()));
+					c.containingMemSys.getSP().getTPC_number(),
+					c.containingMemSys.getSP().getSM_number(),
+					c.containingMemSys.getSP().getSP_number()));
 		}
 	}
 	
@@ -540,7 +543,7 @@ public class CentralizedDirectoryCache extends Cache
 						ArchitecturalComponent.memoryControllers.get(0),
 						event.getRequestType(),
 						event.getAddress(),
-						(event).tpcId, (event).smId));
+						(event).tpcId, (event).smId, (event).spId));
 	}
 	
 	public long getDirectoryAddress(AddressCarryingEvent event)
@@ -658,13 +661,13 @@ public class CentralizedDirectoryCache extends Cache
 		
 		requestingCache.getPort().put(
 				new AddressCarryingEvent(
-					requestingCache.containingMemSys.getSM().getEventQueue(),
+					requestingCache.containingMemSys.getSP().getEventQueue(),
 					latency,
 					event.getRequestingElement(),
 					requestingCache,
 					RequestType.Send_Mem_Response,
 					((AddressCarryingEvent)event).getAddress(),
-					(event).tpcId, (event).smId));
+					(event).tpcId, (event).smId, (event).spId));
 	}
 	public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException
 	{

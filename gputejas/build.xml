@@ -4,6 +4,8 @@
 	    <property name="jar-dir" value="jars"/>    <!-- directory where the jars are generated -->
 	    <property name="jar-name" value="GPUTejas"/>  <!-- name of the jar -->
 	    <property name="main-class" value="main.Main"/> <!-- path to the main class -->
+	    <!-- property name="jar-name" value="Tracesimplifier"/-->
+	    <!-- property name="main-class" value="traceSimplification.TraceSimplifier"/-->
 	<!-- ________________________ -->
 
     <property environment="env"/>

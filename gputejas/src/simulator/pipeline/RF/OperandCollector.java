@@ -1,7 +1,7 @@
 package pipeline.RF;
 import pipeline.RF.Arbiter.*;
 import pipeline.*;
-import generic.SM;
+import generic.SP;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -27,7 +27,7 @@ public class OperandCollector {
     arbiter_t m_arbiter;
     Map<Integer, Vector<Collector>> m_cus;
     Vector<Dispatch> m_dispatch_units;
-    SM sm;
+    SP sp;
 	GPUExecutionEngine containingExecutionEngine;
 	int AllocDeallocAccesses;
 	int BankAccesses;
@@ -40,7 +40,7 @@ public class OperandCollector {
 	public OperandCollector()
        {
           m_num_banks=RegConfig.num_banks;
-          sm=null;
+          sp=null;
           m_initialized=false;
           containingExecutionEngine=null;
           m_num_collector_sets=RegConfig.num_collector_units;
@@ -66,19 +66,22 @@ public class OperandCollector {
            for (int i = 0; i < num_cu; i++) {
             m_cus.get(set_id).add(new Collector(this));
             m_cu.add(m_cus.get(set_id).lastElement());
+            CollectorAccesses++;
+            
         }
         // for now each collector set gets dedicated dispatch units.
         for (int i = 0; i < num_dispatch; i++) {
             m_dispatch_units.add(new Dispatch(m_cus.get(set_id)));
+            DispatchUnitAccesses++;
         }
         
    
        }
       
-       public void init( int num_banks, SM sm, GPUExecutionEngine containExecutionEngine)
+       public void init( int num_banks, SP sp, GPUExecutionEngine containExecutionEngine)
        {
     	this.containingExecutionEngine=containExecutionEngine;
-        this.sm=sm;
+        this.sp=sp;
         m_arbiter.init(m_cu.size(),num_banks);
         m_bank_warp_shift = 0; 
         m_warp_size = SmConfig.WarpSize;  
@@ -99,10 +102,12 @@ public class OperandCollector {
            while(r.hasNext()) {
                int reg = (Integer) r.next();
                int bank = containingExecutionEngine.register_bank(reg,inst.warp_id(),m_num_banks,m_bank_warp_shift);
+        	   BankAccesses++;
                if( m_arbiter.bank_idle(bank) ) {
             	   if(m_arbiter==null)
             		   System.out.println("arbiter is null");
                    m_arbiter.allocate_bank_for_write(bank,new op_t(inst,reg,m_num_banks,m_bank_warp_shift,this));
+            	   ArbiterAccesses++;
                } else {
                    return false;
                }
@@ -126,6 +131,8 @@ public class OperandCollector {
    void process_banks()
        {
           m_arbiter.reset_alloction();
+          AllocDeallocAccesses++;
+          BankAccesses++;
        }
     
        void dispatch_ready_cu()
@@ -134,8 +141,10 @@ public class OperandCollector {
         for( int p=0; p < m_dispatch_units.size(); ++p ) {
             Dispatch du = m_dispatch_units.get(p);
             Collector cu = du.find_ready();
-            if(cu!=null)
+            if(cu!=null) {
             	cu.dispatch();
+            	DispatchUnitAccesses++;
+            }
 //            else
 //            	System.out.println("Not dispatched");
        }
@@ -151,7 +160,9 @@ public class OperandCollector {
 //	        	   System.out.println("found collector free");
 	              Collector cu = cu_set.get(k);
 	              allocated = cu.allocate(containingExecutionEngine.WarpTable.pollFirst());
+	              CollectorAccesses++;
 	              m_arbiter.add_read_requests(cu);
+	              ArbiterAccesses++;
 	              break;
 	           }
 	       }
@@ -169,25 +180,36 @@ void allocate_reads(){
 	       op_t rr = (op_t) r.next();
 	      if(rr.m_operand!=-1)
 	      rr.m_cu.collect_operand(rr.m_operand);
+	      CollectorAccesses++;
 	      m_arbiter.allocate_for_read(rr.m_bank,rr);
+	      ArbiterAccesses++;
+	      AllocDeallocAccesses++;
+	      BankAccesses++;
 	   }
 	  containingExecutionEngine.incregfile_reads(SmConfig.WarpSize);//op.get_active_count());
+   }
+   
+   public void clear() {
+	   this.m_cu = null;
+	   this.m_arbiter = null;
+	   this.m_cus = null;
+	   this.m_dispatch_units = null;
    }
        
 	public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException
 	{
 		EnergyConfig totalPower = new EnergyConfig(0, 0);
-		EnergyConfig AllocDeallocPower = new EnergyConfig(sm.getAllocPower(), AllocDeallocAccesses);
+		EnergyConfig AllocDeallocPower = new EnergyConfig(sp.getAllocPower(), AllocDeallocAccesses);
 		totalPower.add(totalPower,AllocDeallocPower);
-		EnergyConfig BankPower = new EnergyConfig(sm.getBankPower(), BankAccesses);
+		EnergyConfig BankPower = new EnergyConfig(sp.getBankPower(), BankAccesses);
 		totalPower.add(totalPower, BankPower);
-		EnergyConfig ArbiterPower = new EnergyConfig(sm.getArbiterPower(),ArbiterAccesses);
+		EnergyConfig ArbiterPower = new EnergyConfig(sp.getArbiterPower(),ArbiterAccesses);
 		totalPower.add(totalPower, ArbiterPower);
-		EnergyConfig CollectorUnitsDecodePower = new EnergyConfig(sm.getCollectorPower(), CollectorAccesses);
+		EnergyConfig CollectorUnitsDecodePower = new EnergyConfig(sp.getCollectorPower(), CollectorAccesses);
 		totalPower.add(totalPower, CollectorUnitsDecodePower);
-		EnergyConfig DispatchPower = new EnergyConfig(sm.getDispatchPower(), DispatchUnitAccesses);
+		EnergyConfig DispatchPower = new EnergyConfig(sp.getDispatchPower(), DispatchUnitAccesses);
 		totalPower.add(totalPower, DispatchPower);
-		EnergyConfig ScoreBoardPower = new EnergyConfig(sm.getScoreboardPower(), ScoreboardAccesses);
+		EnergyConfig ScoreBoardPower = new EnergyConfig(sp.getScoreboardPower(), ScoreboardAccesses);
 		totalPower.add(totalPower, ScoreBoardPower);
 		totalPower.printEnergyStats(outputFileWriter, componentName);
 		return totalPower;

@@ -36,7 +36,7 @@ public class MainMemoryController extends SimulationElement
 {
 	public int numberOfMemoryControllers;
 	public int[] mainmemoryControllersLocations;
-	long numAccesses;
+	protected long numAccesses;
 		
 	public MainMemoryController() {
 			super(SystemConfig.mainMemPortType,	SystemConfig.mainMemoryAccessPorts,

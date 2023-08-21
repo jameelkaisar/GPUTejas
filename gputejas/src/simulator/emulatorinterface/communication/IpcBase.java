@@ -56,8 +56,6 @@ public abstract class IpcBase {
 	// to maintain synchronization between main thread and the reader threads
 	public Semaphore free = new Semaphore(0, true);
 
-	
-	
 
 	// Initialise structures and objects
 	public IpcBase () {

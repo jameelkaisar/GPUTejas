@@ -29,9 +29,9 @@ public class CachePullEvent extends Event {
 							SimulationElement requestingElement,
 							SimulationElement processingElement,
 							RequestType requestType,
-							int tpcId, int smId)
+							int tpcId, int smId, int spId)
 	{
-		super(eventQ, eventTime, requestingElement, processingElement, requestType, tpcId, smId);
+		super(eventQ, eventTime, requestingElement, processingElement, requestType, tpcId, smId, spId);
 	}
 
 }

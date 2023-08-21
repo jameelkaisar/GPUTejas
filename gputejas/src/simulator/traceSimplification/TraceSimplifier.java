@@ -36,6 +36,9 @@ import java.io.FileOutputStream;
 import java.io.ObjectOutputStream;
 
 import config.SimulationConfig;
+import config.SmConfig;
+import config.SystemConfig;
+import config.TpcConfig;
 import config.XMLParser;
 import emulatorinterface.translator.x86.instruction.InstructionClass;
 import emulatorinterface.translator.x86.instruction.InstructionClassTable;
@@ -57,6 +60,7 @@ import config.XMLParser;
 public class TraceSimplifier {
 	
 	public static int totalNumKernels;
+	public static int totalNumCores;
 	public static BufferedReader  inputBufferedReader;
 	public static FileOutputStream fos[];
     public static DataOutputStream dos[];
@@ -82,12 +86,13 @@ public class TraceSimplifier {
 		 * 5. repeat for other kernels
 		 * 
 		 */
-		System.out.println("Compressing the traces !!! ");
+		System.out.println("Compressing the traces !!!");
 		long blockLength=0;
 		String configFileName = arguments[0];
 		XMLParser.parse(configFileName);
 		totalNumKernels = Integer.parseInt(arguments[3]);
-		String traceFileFolder = arguments[2] + "/" + SimulationConfig.MaxNumJavaThreads;
+		totalNumCores = SystemConfig.NoOfTPC * TpcConfig.NoOfSM * SmConfig.NoOfSP;
+		String traceFileFolder = arguments[2] + "/" + totalNumCores;
 		fos=new FileOutputStream[totalNumKernels];
 	    dos=new DataOutputStream[totalNumKernels];
 		kernelInstructionsTable= new Hashtable[totalNumKernels];
@@ -100,21 +105,20 @@ public class TraceSimplifier {
 		int curKernel=-1;
 		
 		try {
-					
-			for(int j=0;j<SimulationConfig.MaxNumJavaThreads;j++)
+			for(int j=0;j<totalNumCores;j++)
 			{
-				System.out.println("Conpressed for thread " + j);
+				System.out.println("Compressing for core " + j);
 				curKernel=-1;
 				String inputFileName = traceFileFolder+"/"+j+".txt";
 				File inputTraceFile = new File(inputFileName);
 				if(j>0)
 				{
-				for(int i=0;i<totalNumKernels;i++)
-				{
-					dos[i].close();
-					fos[i].close();
-				}
-				inputBufferedReader.close();
+					for(int i=0;i<totalNumKernels;i++)
+					{
+						dos[i].close();
+						fos[i].close();
+					}
+					inputBufferedReader.close();
 				}
 				inputBufferedReader = new BufferedReader(new FileReader(inputTraceFile));
 				
@@ -164,7 +168,7 @@ public class TraceSimplifier {
 						
 						boolean floatingOperation=myParser.checkFloatingOperation(operation);
 						
-						if(operation.startsWith("ld.shared") || operation.startsWith("ld.const") || 
+						if(operation.startsWith("ld.global") || operation.startsWith("ld.param") || operation.startsWith("ld.shared") || operation.startsWith("ld.const") || operation.startsWith("st.global") || 
 								operation.startsWith("st.shared") || operation.startsWith("st.const")|| 
 									operation.startsWith("ldu.shared") || operation.startsWith("ldu.const"))
 						{
@@ -183,7 +187,6 @@ public class TraceSimplifier {
 						if(news.startsWith("%r") || news.startsWith("[%r"))
 							NoofRegisters++;
 						}
-//						System.out.println(temp.countTokens());
 						temp.nextToken();
 						if(NoofRegisters!=0){
 //						System.out.println("No of registers are not 0");
@@ -192,11 +195,10 @@ public class TraceSimplifier {
 						while(temp.hasMoreTokens())
 						{	String news=(temp.nextToken());
 //						
-						if(news.startsWith("%r") || news.startsWith("[%r"))
-							{registers[i]=Integer.parseInt(news.replaceAll("[\\D]", ""));
-//							System.out.println(news);
-//							System.out.println(registers[i]);
-							i++;
+							if(news.startsWith("%r") || news.startsWith("[%r"))
+							{
+								registers[i]=Integer.parseInt(news.replaceAll("[\\D]", ""));
+								i++;
 							}
 						}
 						fullinstructionclass=new FullInstructionClass(instructionClass, registers);
@@ -204,15 +206,14 @@ public class TraceSimplifier {
 						}
 						else
 							fullinstructionclass=new FullInstructionClass(instructionClass, null);
-//						System.out.println("No of registers are not 0");
 						// Add registers parsing here for changing the instructionclass files 
 						dos[curKernel].writeInt(ip);
 						blockLength+=String.valueOf(ip).length();
 						
 						if(type == TYPE_MEM)
 						{	
-							if(operation.startsWith("ld.shared") || operation.startsWith("ld.const") || 
-									operation.startsWith("st.shared") || operation.startsWith("st.const")|| 
+							if(operation.startsWith("ld.global") || operation.startsWith("ld.param") || operation.startsWith("ld.shared") || operation.startsWith("ld.const") || 
+									operation.startsWith("st.global") || operation.startsWith("st.shared") || operation.startsWith("st.const")|| 
 										operation.startsWith("ldu.shared") || operation.startsWith("ldu.const"))
 							{
 								dos[curKernel].writeInt(MEM_START);						
@@ -228,7 +229,7 @@ public class TraceSimplifier {
 								}
 								dos[curKernel].writeLong(MEM_END);
 							}
-						}						
+						}
 						
 						dos[curKernel].flush();
 						blockLength+=1;		
@@ -250,23 +251,21 @@ public class TraceSimplifier {
 				}
 				
 			}
-				for(int i=0;i<totalNumKernels;i++)
-				{
-					dos[i].close();
-					fos[i].close();
-				}	
-				inputBufferedReader.close();					
-				System.out.println("reached here");
-		for(int i=0;i<totalNumKernels;i++)
-		{
-			FileOutputStream fos = new FileOutputStream(traceFileFolder+"/hashfile"+ "_" + i);
-			ObjectOutputStream oos = new ObjectOutputStream(fos);
-			oos.writeObject(kernelInstructionsTable[i]);
-			System.out.println("serializing java object");
-			oos.close();
-		}
-	
-	
+			for(int i=0;i<totalNumKernels;i++)
+			{
+				dos[i].close();
+				fos[i].close();
+			}	
+			inputBufferedReader.close();
+			System.out.println("serializing java object ...");
+			
+			for(int i=0;i<totalNumKernels;i++)
+			{
+				FileOutputStream fos = new FileOutputStream(traceFileFolder+"/hashfile"+ "_" + i);
+				ObjectOutputStream oos = new ObjectOutputStream(fos);
+				oos.writeObject(kernelInstructionsTable[i]);
+				oos.close();
+			}
 		}
 		 catch (Exception e) {
 			e.printStackTrace();

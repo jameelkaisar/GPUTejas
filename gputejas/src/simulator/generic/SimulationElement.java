@@ -34,7 +34,7 @@ public abstract class SimulationElement implements Cloneable
 	CommunicationInterface comInterface;
 
 
-   public Object clone()
+    public Object clone()
     {
         try
         {
@@ -47,7 +47,6 @@ public abstract class SimulationElement implements Cloneable
         }
     }
 
-	
 	public SimulationElement(PortType portType,	int noOfPorts,	long occupancy,long latency)
 	{
 		this.port = new Port(portType, noOfPorts, occupancy);
@@ -56,7 +55,7 @@ public abstract class SimulationElement implements Cloneable
 	public SimulationElement(PortType portType, 
 			int noOfPorts, long occupancy, long latency, long frequency	)
 		{
-			this.port = new Port(portType, noOfPorts, occupancy);//to be added latency in ports in gpu not present but present in tejas
+			this.port = new Port(portType, noOfPorts, occupancy); //to be added latency in ports in gpu not present but present in tejas
 			this.latency = latency;
 		}
 	
@@ -83,12 +82,9 @@ public abstract class SimulationElement implements Cloneable
 	public CommunicationInterface getComInterface() {
 		
 		if (comInterface==null)
-			{ 
+		{
 			System.out.println("comInterface is null");
-			//BusInterface busInterface;
-			//busInterface = new BusInterface(ArchitecturalComponent.bus);
-		//	setComInterface(busInterface);
-			}
+		}
 	
 		return comInterface;
 	}
@@ -105,7 +101,9 @@ public abstract class SimulationElement implements Cloneable
 	public void setPort(Port port){
 		this.port = port;
 	}
+	
 	public abstract void handleEvent(EventQueue eventQ, Event event);
+	
 	public void sendEvent(Event event) {
 		if (event.getEventTime() != 0) {
 			misc.Error.showErrorAndExit("Send event with zero latency !!");
@@ -113,9 +111,8 @@ public abstract class SimulationElement implements Cloneable
 
 		if (event.getProcessingElement().getComInterface() != this.getComInterface()) {
 			getComInterface().sendMessage(event);
-//			System.out.println("Message not going through bus"+event.getProcessingElement().getComInterface()+ "  "+this.getComInterface());
 		} 
-	else {
+		else {
 			event.getProcessingElement().getPort().put(event);
 		}
 	}

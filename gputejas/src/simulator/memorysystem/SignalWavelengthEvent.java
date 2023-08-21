@@ -36,7 +36,7 @@ public class SignalWavelengthEvent  extends AddressCarryingEvent{
 			long eventTime, SimulationElement requestingElement, SimulationElement processingElement,
 			RequestType requestType, long address, int wavelength, Vector<Integer> sourceBankId, 
 			Vector<Integer> destinationBankId, Vector<Integer> oldSourceBankId,
-			SimulationElement oldReqElement, Stack<SimulationElement> simStack, Stack<RequestType> reqStack, int tpcId, int smId) {
+			SimulationElement oldReqElement, Stack<SimulationElement> simStack, Stack<RequestType> reqStack, int tpcId, int smId, int spId) {
 		
 		super(eventQ, eventTime, requestingElement, processingElement, requestType, address);
 		
@@ -45,6 +45,7 @@ public class SignalWavelengthEvent  extends AddressCarryingEvent{
 		this.setDestinationId(destinationBankId);
 		this.tpcId = tpcId;
 		this.smId = smId;	
+		this.spId = spId;
 	}
 	
 	public void setWavelength(int wavelength){

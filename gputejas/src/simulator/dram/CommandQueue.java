@@ -1,7 +1,7 @@
 package dram;
 
 import generic.GlobalClock;
-import generic.LocalClockperSm;
+import generic.LocalClockperSp;
 
 import java.util.ArrayList;
 
@@ -25,7 +25,7 @@ public class CommandQueue {
 	ArrayList<ArrayList<ArrayList<MainMemoryBusPacket>>> queues;
 	//QueuingStructure queuingStructure;				//in mainmemconfig
 	int numBankQueues;
-	int CMD_QUEUE_DEPTH;												
+	int CMD_QUEUE_DEPTH;
 	
 	BankState[][] bankStates;
 	int rowAccessCounters[][];
@@ -103,7 +103,6 @@ public class CommandQueue {
 		}
 		
 	}
-
 	
 	public void enqueue(MainMemoryBusPacket busPacket)
 	{
@@ -130,12 +129,10 @@ public class CommandQueue {
 		}
 		else
 		{
-			Error.showErrorAndExit("== Error - Unknown queuing structure");
-			
+			Error.showErrorAndExit("== Error - Unknown queuing structure");	
 		}
-	
+		
 	}
-	
 	
 	//checks if busPacket is allowed to be issued
 	boolean isIssuable(MainMemoryBusPacket busPacket,long currentClockCycle )
@@ -173,7 +170,6 @@ public class CommandQueue {
 										
 					}
 				}*/
-				
 				return false;
 			}
 			//break;
@@ -188,7 +184,6 @@ public class CommandQueue {
 			}
 			else
 			{
-
 				//Main.debugPrinter.print("Cannot issue packet of type: \n");
 				//busPacket.printPacketToFile();
 				//Main.debugPrinter.print("\n");
@@ -206,7 +201,6 @@ public class CommandQueue {
 			}
 			else
 			{
-
 				//Main.debugPrinter.print("Cannot issue packet of type: \n");
 				//busPacket.printPacketToFile();
 				//Main.debugPrinter.print("\n");
@@ -236,7 +230,6 @@ public class CommandQueue {
 		return false;
 	}
 	
-	
 	//Removes the next item from the command queue based on the system's
 	//command scheduling policy
 	public MainMemoryBusPacket pop(long currentClockCycle)
@@ -252,13 +245,11 @@ public class CommandQueue {
 			//decrement all the counters we have going
 			for (int j=0;j<tFAWCountdown.get(i).size();j++)
 			{
-				tFAWCountdown.get(i).set(j,tFAWCountdown.get(i).get(j)-1);
-				
+				tFAWCountdown.get(i).set(j,tFAWCountdown.get(i).get(j)-1);	
 			}
 	
 			//the head will always be the smallest counter, so check if it has reached 0
-			if (tFAWCountdown.get(i).size()>0 && tFAWCountdown.get(i).get(0)==0)
-				
+			if (tFAWCountdown.get(i).size()>0 && tFAWCountdown.get(i).get(0)==0)	
 			{
 				//tFAWCountdown[i].erase(tFAWCountdown[i].begin());
 				//Main.debugPrinter.print("\nFinally removed\n");
@@ -332,7 +323,6 @@ public class CommandQueue {
 					sendingREF = true;
 				}
 			} // refreshWaiting
-			
 			
 			//if we're not sending a REF, proceed as normal
 			if (!sendingREF)
@@ -591,7 +581,6 @@ public class CommandQueue {
 				//	that has no other commands waiting
 				if (!foundIssuable)
 				{
-					
 					//Test.outputLog.print("Searching for banks to close\n");
 					
 					//search for banks to close
@@ -675,12 +664,12 @@ public class CommandQueue {
 	
 	}
 	
-	
 	int[] nextRankAndBank(int rank, int bank)
 	{
 		if (mainMemoryConfig.schedulingPolicy == SchedulingPolicy.RankThenBankRoundRobin)
 		{
 			rank++;
+			if (rank == mainMemoryConfig.numRanks)
 			{
 				rank = 0;
 				bank++;
@@ -716,7 +705,6 @@ public class CommandQueue {
 
 	}	
 	
-	
 	ArrayList<MainMemoryBusPacket> getCommandQueue(int rank, int bank)
 	{
 		if (mainMemoryConfig.queuingStructure == QueuingStructure.PerRankPerBank)
@@ -732,7 +720,6 @@ public class CommandQueue {
 			Error.showErrorAndExit("Unknown queue structure");
 			return null;
 		}
-
 	}
 	
 	void needRefresh(int rank)
@@ -746,7 +733,6 @@ public class CommandQueue {
 		return(BusPacketQueue1D.size()>0);
 	}
 	
-	
 	public boolean hasRoomFor(int num, int rank, int bank)
 	{
 //		System.out.println(CMD_QUEUE_DEPTH - getCommandQueue(rank, bank).size() +"is the size left for rank"+rank);
@@ -754,6 +740,7 @@ public class CommandQueue {
 		
 	
 	}
+
 /*
  * The following function is for the test prupose, the outputlog was a function in the TEJAS but is not a function in the GPU TEJAS.
  * SO currently i am commenting the whole

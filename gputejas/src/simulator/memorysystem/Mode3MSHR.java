@@ -38,6 +38,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 	final int mshrStructSize;
 	Hashtable<Long, OMREntry> mshr;
 	public int maxSizeReached = Integer.MIN_VALUE;
+	public boolean l2;
 	
 	public Mode3MSHR(int offset, int mshrSize, EventQueue eventQ) {
 		
@@ -85,25 +86,28 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 	
 	public boolean addOutstandingRequest(AddressCarryingEvent eventAdded)
 	{
-		AddressCarryingEvent event = (AddressCarryingEvent)eventAdded.clone();
-		long addr = event.getAddress();
-		long blockAddr = addr >>> offset;
-		
-		if (!/*NOT*/mshr.containsKey(blockAddr))
-		{
-			/*
-			 * the higher level cache must check if mshr is full before requesting
-			 */
-			OMREntry newOMREntry = new OMREntry(new ArrayList<AddressCarryingEvent>(), null);
-			newOMREntry.outStandingEvents.add(event);
-			mshr.put(blockAddr, newOMREntry);
-			return true;
-		}
-		else
-		{			
-
-			ArrayList<AddressCarryingEvent> tempList = mshr.get(blockAddr).outStandingEvents;
-			tempList.add(event);
+		try {
+			AddressCarryingEvent event = (AddressCarryingEvent)eventAdded.clone();
+			long addr = event.getAddress();
+			long blockAddr = addr >>> offset;
+			
+			if (!/*NOT*/mshr.containsKey(blockAddr))
+			{
+				/*
+				 * the higher level cache must check if mshr is full before requesting
+				 */
+				OMREntry newOMREntry = new OMREntry(new ArrayList<AddressCarryingEvent>(), null);
+				newOMREntry.outStandingEvents.add(event);
+				mshr.put(blockAddr, newOMREntry);
+				return true;
+			}
+			else
+			{
+				ArrayList<AddressCarryingEvent> tempList = mshr.get(blockAddr).outStandingEvents;
+				tempList.add(event);
+				return false;
+			}
+		} catch (Exception e) {
 			return false;
 		}
 	}
@@ -335,4 +339,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		}
 	}
 
+	public void clear() {
+		this.mshr.clear();
+	}
 }

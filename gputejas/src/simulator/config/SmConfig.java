@@ -24,17 +24,17 @@ package config;
 
 public class SmConfig {
 
-	public static int NoOfWarpSchedulers;
+	public static int NoOfWarpSchedulers; // not used anywhere
 	public static int NoOfSP;
 	public static SpConfig[] sp;
 	public static int WarpSize;
-	public int IntRegFileSize;
+	// public int IntRegFileSize;
 	public static int frequency;
-	public CacheConfig iCache = new CacheConfig();
-	public CacheConfig dCache = new CacheConfig();
-	public CacheConfig constantCache = new CacheConfig();
-	public CacheConfig sharedCache = new CacheConfig();
-	public RegConfig regconfig=new RegConfig();
+	// public CacheConfig iCache = new CacheConfig();
+	public static CacheConfig L1Cache = new CacheConfig();
+	public static CacheConfig constantCache = new CacheConfig();
+	public static CacheConfig sharedCache = new CacheConfig();
+	public static RegConfig regconfig = new RegConfig();
 	public static EnergyConfig decodePower;
 	// NOT needed if each operation power not available 
 	public static EnergyConfig intSpPower;

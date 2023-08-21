@@ -38,6 +38,7 @@ public abstract class Event implements Cloneable
 	private long priority;
 	public int tpcId;
 	public int smId;
+	public int spId;
 //serialization and globalSerialization copied
 	public long serializationID = 0;
 	public static long globalSerializationID = 0;
@@ -60,6 +61,7 @@ public abstract class Event implements Cloneable
 		globalSerializationID++;
 		serializationID = globalSerializationID;
 	}
+	
 	public Event(EventQueue eventQ, SimulationElement requestingElement,
 			SimulationElement processingElement, RequestType requestType) 
 	{
@@ -69,7 +71,8 @@ public abstract class Event implements Cloneable
 		this.processingElement = processingElement;
 		this.requestType = requestType;
 		this.tpcId = 0;	
-		this.smId = 0;		
+		this.smId = 0;
+		this.spId = 0;
 		this.priority = requestType.ordinal();
 	}
 	
@@ -96,10 +99,10 @@ public abstract class Event implements Cloneable
 		this.requestType = requestType;
 		this.smId = -1;
 		this.tpcId= -1;
+		this.spId = -1;
 		this.priority = requestType.ordinal();
 	}
 
-	
 	public Event update(SimulationElement requestingElement,
 			SimulationElement processingElement, SimulationElement actualRequestingElement,
 			SimulationElement actualProcessingElement)
@@ -107,10 +110,11 @@ public abstract class Event implements Cloneable
 		incrementSerializationID(); //copied from tejas
 		this.requestingElement = requestingElement;
 		this.processingElement = processingElement;
-		this.actualProcessingElement = actualProcessingElement;//copied from tejas
-		this.actualRequestingElement = actualRequestingElement;//copied from tejas
+		this.actualProcessingElement = actualProcessingElement; //copied from tejas
+		this.actualRequestingElement = actualRequestingElement; //copied from tejas
 		return this;
 	}
+	
 //	public Event(EventQueue eventQ, long eventTime, SimulationElement requestingElement,
 //			SimulationElement processingElement, RequestType requestType, int coreId) 
 //	{
@@ -123,8 +127,9 @@ public abstract class Event implements Cloneable
 //		this.coreId = coreId;
 //		this.priority = requestType.ordinal();
 //	}
+	
 	public Event(EventQueue eventQ, long eventTime, SimulationElement requestingElement,
-			SimulationElement processingElement, RequestType requestType, int tpcId, int smId) 
+			SimulationElement processingElement, RequestType requestType, int tpcId, int smId, int spId) 
 	{
 		this.eventTime = eventTime; // this should be set by the port
 		this.eventQ = eventQ;
@@ -133,6 +138,7 @@ public abstract class Event implements Cloneable
 		this.requestType = requestType;
 		this.tpcId = tpcId;
 		this.smId = smId;
+		this.spId = spId;
 		this.priority = requestType.ordinal();
 	}
 
@@ -147,6 +153,7 @@ public abstract class Event implements Cloneable
 		this.priority = requestType.ordinal();
 		return this;
 	}
+	
 	public Event update(SimulationElement requestingElement,
 			SimulationElement processingElement)
 	{
@@ -158,11 +165,12 @@ public abstract class Event implements Cloneable
 
 	public SimulationElement getActualRequestingElement() {
 		return actualRequestingElement;
-	}// copied from tejas
+	}
 	
 	public SimulationElement getActualProcessingElement() {
 		return actualProcessingElement;
-	}// copied from Tejas
+	}
+	
 	public Event update(long eventTime)
 	{
 		incrementSerializationID();
@@ -237,6 +245,6 @@ public abstract class Event implements Cloneable
 	
 	public void dump()
 	{
-		System.out.println("TPC = "+tpcId + " SM = "+ smId + " : " + requestType + " : " + requestingElement + " : " + processingElement + " : " + eventTime);
+		System.out.println("TPC = "+tpcId + " SM = "+ smId + " : " + " SP = "+ spId + " : " + requestType + " : " + requestingElement + " : " + processingElement + " : " + eventTime);
 	}
 }

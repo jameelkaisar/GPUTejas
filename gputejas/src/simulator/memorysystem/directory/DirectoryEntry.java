@@ -96,8 +96,8 @@ public class DirectoryEntry extends CacheLine {
 		// the same cache line which triggered the memResponse multiple times. For the time being, just ignore this hack.
 		if(this.state==MESI.MODIFIED && this.sharers.size()>0 && this.sharers.elementAt(0)!=c) {
 			misc.Error.showErrorAndExit("You cannot have multiple owners for a modified state !!\n" +
-					"currentOwner : " + getOwner().containingMemSys.getSM().getTPC_number() + 
-					"\nnewOwner : " + c.containingMemSys.getSM().getTPC_number() + 
+					"currentOwner : " + getOwner().containingMemSys.getSP().getTPC_number() + 
+					"\nnewOwner : " + c.containingMemSys.getSP().getTPC_number() + 
 					"\naddr : " + this.getAddress());
 		}
 		
@@ -106,8 +106,8 @@ public class DirectoryEntry extends CacheLine {
 		// the same cache line which triggered the memResponse multiple times. For the time being, just ignore this hack.
 		if(this.state==MESI.EXCLUSIVE && this.sharers.size()>0 && this.sharers.elementAt(0)!=c) {
 			misc.Error.showErrorAndExit("You cannot have multiple owners for exclusive state !!\n" +
-					"currentOwner : " + getOwner().containingMemSys.getSM().getTPC_number() + 
-					"\nnewOwner : " + c.containingMemSys.getSM().getTPC_number() + 
+					"currentOwner : " + getOwner().containingMemSys.getSP().getTPC_number() + 
+					"\nnewOwner : " + c.containingMemSys.getSP().getTPC_number() + 
 					"\naddr : " + this.getAddress());
 		}
 		
@@ -160,7 +160,7 @@ public class DirectoryEntry extends CacheLine {
 		StringBuilder s = new StringBuilder();
 		s.append("addr = " + this.getAddress() + " : "  + "state = " + this.getState() + " cores : " );
 		for(int i=0; i<this.sharers.size(); i++) {
-			s.append(this.sharers.elementAt(i).containingMemSys.getSM().getTPC_number() + " , ");
+			s.append(this.sharers.elementAt(i).containingMemSys.getSP().getTPC_number() + " , ");
 		}
 		return s.toString();
 	}

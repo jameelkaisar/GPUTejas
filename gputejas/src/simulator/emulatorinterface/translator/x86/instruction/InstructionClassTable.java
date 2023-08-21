@@ -306,7 +306,7 @@ public static void createInstructionClassTable() {
 			floatInstructionClassTable.put(floatingPointComplexOperationTwoOperands[i],
 					InstructionClass.FLOATING_POINT_COMPLEX_OPERATION_TWO_OPERANDS);
 		
-		String floatingPointLoad[] = "ld|ldu"
+		String floatingPointLoad[] = "ld|ldu|ld.param|ld.global"
 				.split("\\|");
 		for (int i = 0; i < floatingPointLoad.length; i++)
 			floatInstructionClassTable.put(floatingPointLoad[i],
@@ -331,7 +331,7 @@ public static void createInstructionClassTable() {
 		for (int i = 0; i < integerAddressConvert.length; i++)
 			floatInstructionClassTable.put(integerAddressConvert[i],
 					InstructionClass.INTEGER_ADDRESS_CONVERT);
-		String floatingPointStore[] = "st"
+		String floatingPointStore[] = "st|st.global"
 				.split("\\|");
 		for (int i = 0; i < floatingPointStore.length; i++)
 			floatInstructionClassTable.put(floatingPointStore[i],
@@ -398,7 +398,7 @@ String exit[] = "exit"
 
 
 
-String integerLoad[] = "ld|ldu"
+String integerLoad[] = "ld|ldu|ld.param|ld.global"
 				.split("\\|");
 		for (int i = 0; i < integerLoad.length; i++)
 			integerInstructionClassTable.put(integerLoad[i],
@@ -437,7 +437,7 @@ String integerLoad[] = "ld|ldu"
 			integerInstructionClassTable.put(integerPrefetch[i],
 					InstructionClass.INTEGER_PREFETCH);
 		
-		String integerStore[] = "st"
+		String integerStore[] = "st|st.global"
 				.split("\\|");
 		for (int i = 0; i < integerStore.length; i++)
 			integerInstructionClassTable.put(integerStore[i],

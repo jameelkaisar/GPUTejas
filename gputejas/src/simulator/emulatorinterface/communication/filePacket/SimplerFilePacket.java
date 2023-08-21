@@ -80,17 +80,20 @@ public class SimplerFilePacket extends IpcBase{
 	DataInputStream dis=null;
 	
 	long totalFetchedAssemblyPackets = 0;
-	public int javaTid;
-	public SimplerFilePacket(int javaTid) {
-			this. javaTid=javaTid;
-	}
-	
+	public int kernelExecuted = 0;
+	public int totalKernels = Main.totalNumKernels;
+	public int coreid;
+	public long ins = 0;
 	int blocks = 0;
+	
+	public SimplerFilePacket(int coreid) {
+		this.coreid=coreid;
+	}
 	
 	public void openNextFile(int kernelNumber)
 	{
 		blocks = 0;
-		String inputFileName = Main.getTraceFileFolder()+"/"+javaTid+"_"+kernelNumber+".txt";
+		String inputFileName = Main.getTraceFileFolder()+"/"+coreid+"_"+kernelNumber+".txt";
 		
 		try {
 			if(dis!=null)
@@ -105,7 +108,7 @@ public class SimplerFilePacket extends IpcBase{
 			} 
 		catch (Exception e) {
 			
-			Error.showErrorAndExit("FilePacket : no trace file found for JavaId = " + inputFileName);
+			Error.showErrorAndExit("FilePacket : no trace file found for coreid = " + inputFileName);
 			e.printStackTrace();
 			System.exit(0);
 		}
@@ -113,7 +116,6 @@ public class SimplerFilePacket extends IpcBase{
 	}
 	
 	
-	public int kernelExecuted=0,totalKernels=Main.totalNumKernels;
 
 	public boolean kernelLeft()
 	{
@@ -123,14 +125,19 @@ public class SimplerFilePacket extends IpcBase{
 		else{
 			return false;}
 	}
-
-		public long ins=0;
+	
+	public void setcoreid(int coreid) {
+		this.coreid = coreid;
+		this.kernelExecuted = 0;
+		this.javaThreadStarted = false;
+		this.javaThreadTermination = false;
+	}
+	
 	public int fetchManyPackets(SimplerRunnableThread runner, int currBlock, CircularPacketQueue fromEmulator, BlockState blockParam) {
 
 		if(dis==null) {
 			return 0;
 		}
-
 
 		int maxSize = fromEmulator.spaceLeft();
 		
@@ -173,10 +180,10 @@ public class SimplerFilePacket extends IpcBase{
 							
 						}
 				
-						if(packetInHashTable.instructionclass == InstructionClass.INTEGER_LOAD_CONSTANT||
+						if(packetInHashTable.instructionclass == InstructionClass.INTEGER_LOAD|| packetInHashTable.instructionclass == InstructionClass.INTEGER_LOAD_CONSTANT||packetInHashTable.instructionclass == InstructionClass.INTEGER_STORE||
 												packetInHashTable.instructionclass == InstructionClass.INTEGER_STORE_CONSTANT||
 														packetInHashTable.instructionclass == InstructionClass.INTEGER_LOAD_SHARED||
-																packetInHashTable.instructionclass == InstructionClass.INTEGER_STORE_SHARED||packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_LOAD_CONSTANT||
+																packetInHashTable.instructionclass == InstructionClass.INTEGER_STORE_SHARED||packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_LOAD|| packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_LOAD_CONSTANT|| 		packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_STORE|| 
 																								packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_STORE_CONSTANT|| 
 																										packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_LOAD_SHARED||
 																												packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_STORE_SHARED) 
@@ -186,8 +193,9 @@ public class SimplerFilePacket extends IpcBase{
 							int memAddressRead = 0;
 							if((tmp = dis.readInt())==MEM_START)
 							{
-								while((ftmp = dis.readLong())!=MEM_END)//read all the addresses
+								while((ftmp = dis.readLong())!=MEM_END)
 								{
+									// read all the addresses
 									MemoryAddresses[memAddressRead++] = ftmp;
 								}
 								fromEmulator.enqueue( packetInHashTable, ip,  MemoryAddresses);
@@ -243,5 +251,4 @@ public class SimplerFilePacket extends IpcBase{
 		
 	}
 
-	
 }

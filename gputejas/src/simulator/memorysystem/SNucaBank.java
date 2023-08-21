@@ -21,14 +21,14 @@
 package memorysystem;
 import generic.Event;
 import generic.EventQueue;
-import memorysystem.SMMemorySystem;
+import memorysystem.SPMemorySystem;
 import config.CacheConfig;
 
 public class SNucaBank extends NucaCache
 {
 	NucaCache parent;
 	public SNucaBank(String cacheName, int id, CacheConfig cacheParameters,
-			SMMemorySystem containingMemSys, NucaCache p)
+			SPMemorySystem containingMemSys, NucaCache p)
 	{
 		super(cacheName, id, cacheParameters, containingMemSys);
 		parent = p;

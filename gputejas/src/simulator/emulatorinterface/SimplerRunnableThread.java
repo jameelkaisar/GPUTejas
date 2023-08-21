@@ -38,6 +38,7 @@ import config.TpcConfig;
 import main.ArchitecturalComponent;
 import main.Main;
 import memorysystem.Cache;
+import memorysystem.MemorySystem;
 import pipeline.GPUpipeline;
 import emulatorinterface.ThreadBlockState.blockState;
 import emulatorinterface.communication.Encoding;
@@ -65,12 +66,13 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 
 	public long pipe_time = 0;
 	public long mem_time = 0;
-	public long barier_wait=0;
-	public long phaser_wait=0;
+	public long barier_wait = 0;
+	public long phaser_wait = 0;
 	public boolean mem_flag = false;
 	//static EmulatorThreadState[] emulatorThreadState;// = new EmulatorThreadState[EMUTHREADS];
 	static ThreadBlockState[] threadBlockState;//=new ThreadBlockState[EMUTHREADS];
 	public int javaTid;
+	public int coreid;
 	public ObjParser myParser;
 	public int TOTALBLOCKS, blocksExecuted=0;
 	FileInputStream fos = null;
@@ -83,58 +85,107 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 		blocksExecuted=0;
 		epochCount=0;
 		TOTALBLOCKS=0;
+		
 		if(ipcBase.kernelLeft())
 		{	
-			TOTALBLOCKS= Main.totalBlocks[ipcBase.kernelExecuted] / SimulationConfig.MaxNumJavaThreads;
-			if(javaTid < (Main.totalBlocks[ipcBase.kernelExecuted] % SimulationConfig.MaxNumJavaThreads))
+			TOTALBLOCKS = Main.totalBlocks[ipcBase.kernelExecuted] / Main.totalNumCores;
+			if(coreid < (Main.totalBlocks[ipcBase.kernelExecuted] % Main.totalNumCores))
 			{
-				TOTALBLOCKS++; 
+				TOTALBLOCKS++;
 			}
 		}
-		if(TOTALBLOCKS==0)
+		else
 		{
-			return;
+			pipelineInterfaces.setExecutionComplete(true);
+			// assign threads to unexecuted cores
+			if (coreid + SimulationConfig.MaxNumJavaThreads < Main.totalNumCores)
+			{
+				int phase = coreEnd.getPhase();
+				if (phase==previousCore) {
+					// deregister from epoch phaser as workload may be higher for unfinished cores
+					epochEnd.arriveAndDeregister();
+					long g=System.currentTimeMillis();
+					coreEnd.awaitAdvance(phase);
+					phaser_wait+=(System.currentTimeMillis()-g);
+					epochEnd.register();
+				}
+				previousCore = coreEnd.arrive();
+				
+				coreid += SimulationConfig.MaxNumJavaThreads;
+				if (javaTid == 0) {
+					// core[0][0]'s event queue was used for events passing through shared caches
+					// this is now changes to core(thread0)'s event queue, as the former goes out of scope
+					Main.t0_x = coreid / (TpcConfig.NoOfSM * SmConfig.NoOfSP);
+					Main.t0_y = (coreid / SmConfig.NoOfSP) % TpcConfig.NoOfSM;
+					Main.t0_z = coreid % SmConfig.NoOfSP;
+					// start from time 0 to match with local clocks of newly assigned sps
+					GlobalClock.setCurrentTime(0);
+					Main.dram.clear();
+				}
+				ipcBase.setcoreid(coreid);
+				
+				System.out.println(coreid / (TpcConfig.NoOfSM * SmConfig.NoOfSP) +"TPC id"+"java thread"+javaTid+"\n"+
+				(coreid / SmConfig.NoOfSP) % TpcConfig.NoOfSM +"SM id"+"java thread"+javaTid+"\n"+
+				coreid % SmConfig.NoOfSP +"SP id"+"java thread"+javaTid+
+				"\n-- restarting java thread"+javaTid);
+
+				// remove references to earlier sps' pipeline elements
+				// don't dereference the event queue though -- in case the phasers don't work properly, they would still be referenced for some timestamps before moving to tO_(x,y,z)
+				assignedSP.clear();
+				assignedSP=ArchitecturalComponent.getCores()[coreid / (TpcConfig.NoOfSM * SmConfig.NoOfSP)][(coreid / SmConfig.NoOfSP) % TpcConfig.NoOfSM][coreid % SmConfig.NoOfSP];
+				assignedSP.allocate();
+				
+				// copied from initialise function
+				pipelineInterfaces=assignedSP.getPipelineInterface();
+				inputToPipeline = new GenericCircularQueue<Instruction>(Instruction.class, 4000000);
+				GenericCircularQueue<Instruction>[] toBeSet =(GenericCircularQueue<Instruction>[])Array.newInstance(GenericCircularQueue.class, 1);
+				toBeSet[0] = inputToPipeline;
+				pipelineInterfaces.setInputToPipeline(toBeSet);
+				
+				// recalculate totalblocks after switching to new core
+				if(ipcBase.kernelLeft())
+				{
+					TOTALBLOCKS = Main.totalBlocks[ipcBase.kernelExecuted] / Main.totalNumCores;
+					if(coreid < (Main.totalBlocks[ipcBase.kernelExecuted] % Main.totalNumCores))
+					{
+						TOTALBLOCKS++;
+					}
+				}
+			}
 		}
+		
 		blockState = new BlockState[TOTALBLOCKS];
 		inputToPipeline.clear();
-		kernelInstructionsTable=main.Main.kernelInstructionsTables[ipcBase.kernelExecuted];
-		ipcBase.openNextFile(ipcBase.kernelExecuted);
-		
-		
-		maxCoreAssign = 0; 
-		for(int i=0; i<TOTALBLOCKS; i++)
-		{
-			blockState[i] = new BlockState();
-		}
-
 	}
 	
-
-	int maxCoreAssign = 0;      //the maximum core id assigned 	
+	int maxBlockAssign = 0;
 	public BlockState[] blockState;
 
 	GenericCircularQueue<Instruction> inputToPipeline;
 	GPUpipeline pipelineInterfaces;
-	SM assignedSM ;
+	SP assignedSP;
 	public SimplerFilePacket ipcBase;
 
 	void iFinished() {
-			epochEnd.arriveAndDeregister();
+		epochEnd.arriveAndDeregister();
+		coreEnd.arriveAndDeregister();
 	}
 
 
     final int ipcCount = 1000;
 	
-	public void run() {	
-			try {
-				main.Main.runners[javaTid].initialize();
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+	public void run() {
+		try {
+			main.Main.runners[javaTid].initialize();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		
-			ipcBase.javaThreadStarted = true;
+		previousCore = coreEnd.arrive();
+		previousPhase = epochEnd.arrive();
+		ipcBase.javaThreadStarted = true;
 		boolean blockEndSeen=false;
+		
 		while(ipcBase.kernelLeft())
 		{
 			if(TOTALBLOCKS==0){
@@ -142,10 +193,18 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 				try {
 					main.Main.runners[javaTid].initialize();
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 				continue;
+			}
+			
+			kernelInstructionsTable=main.Main.kernelInstructionsTables[ipcBase.kernelExecuted];
+			ipcBase.openNextFile(ipcBase.kernelExecuted);
+				
+			maxBlockAssign = 0; 
+			for(int i=0; i<TOTALBLOCKS; i++)
+			{
+				blockState[i] = new BlockState();
 			}
 			
 			// create pool for emulator packets
@@ -156,8 +215,7 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 			Packet pnew = new Packet();
 			System.out.println(TOTALBLOCKS);
 			while(true)
-			{   
-//				System.out.println("block being executed is "+currBlock);
+			{
 				threadParam = blockState[currBlock];
 				int numReads = 0;
 				
@@ -202,7 +260,6 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 //				this part in simple runnable thread has to be corrected
 				threadParam.checkStarted();
 				FullInstructionClass type;
-//				int i=0;
 				// Process all the packets read from the communication channel
 				while(fromEmulator.isEmpty() == false) {
 					
@@ -226,8 +283,6 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 					}
 					
 					boolean ret = processPacket(threadParam, pnew, currBlock);
-//					System.out.println("here we are");
-//					i++;
 					if(ret==false) {
 						System.out.println(ret);
 						// There is not enough space in pipeline buffer. 
@@ -266,11 +321,11 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 			blocksExecuted+=currBlock+1;
 		    System.out.println("Blocks are executed"+blocksExecuted+"for the thread"+javaTid);
 			
-				try {
-					main.Main.runners[javaTid].initialize();
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+			try {
+				main.Main.runners[javaTid].initialize();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 			
 		}
 		
@@ -280,24 +335,26 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 		return;
 	}
 	
-
 	public Thread t;
-    public Phaser kernelEnd, epochEnd;
+    public Phaser kernelEnd, epochEnd, coreEnd;
+    
 	// initialise a reader thread with the correct thread id and the buffer to
 	// write the results in.
 	@SuppressWarnings("unchecked")
-	public SimplerRunnableThread(String threadName, int javaTid, SimplerFilePacket ipcBase, 
-			SM sm, Phaser epochEnd) {
+	public SimplerRunnableThread(String threadName, int javaTid, SimplerFilePacket ipcBase, SP sp, Phaser epochEnd, Phaser coreEnd) {
 
 		this.ipcBase = ipcBase;		
 		this.javaTid = javaTid;
+		this.coreid = javaTid;
 	    myParser = new ObjParser();
 		this.epochEnd=epochEnd;
-		System.out.println("--  starting java thread"+this.javaTid);
+		this.coreEnd=coreEnd;
+		System.out.println("-- starting java thread"+this.javaTid);
 		inputToPipeline = new GenericCircularQueue<Instruction>(Instruction.class, 4000000);
-		assignedSM=sm;
-		pipelineInterfaces=assignedSM.getPipelineInterface();
-		pipelineInterfaces.setcoreStepSize(assignedSM.getStepSize());
+		assignedSP=sp;
+		assignedSP.allocate();
+		pipelineInterfaces=assignedSP.getPipelineInterface();
+		pipelineInterfaces.setcoreStepSize(assignedSP.getStepSize());
 		GenericCircularQueue<Instruction>[] toBeSet =(GenericCircularQueue<Instruction>[])Array.newInstance(GenericCircularQueue.class, 1);
 		toBeSet[0] = inputToPipeline;
 		pipelineInterfaces.setInputToPipeline(toBeSet);
@@ -309,76 +366,63 @@ public class SimplerRunnableThread implements Runnable,Encoding {
 		if(this.ipcBase != null) {
 			t=(new Thread(this, threadName));
 		}
-		
-		
 
 	}
 
 	protected void runPipelines() {
 		int minN = Integer.MAX_VALUE;
 
-		boolean RAMcyclerun = false;
-
-		if(maxCoreAssign>0) {
-			
+		if(maxBlockAssign>0) {
 			int m = inputToPipeline.size(); 
 			int n= pipelineInterfaces.containingExecutionEngine.WarpTable.size();	
 			if (n < minN && n != 0)
-				minN = n;
-			}
+				minN = n;	
+		}
+		
 		minN = (minN == Integer.MAX_VALUE) ? 0 : minN;
 
-		
 		for (int i1 = 0; i1 < minN; i1++) {
-//			for(int k=0;k<SystemConfig.mainMemoryConfig.numChans;k++){
-//			ArchitecturalComponent.getMainMemoryDRAMController(null,k).oneCycleOperation();}
 			pipelineInterfaces.oneCycleOperation();
-				AddToSetAndIncrementClock(); 
-//				for(int k=0;k<SystemConfig.mainMemoryConfig.numChans;k++){
-//				ArchitecturalComponent.getMainMemoryDRAMController(null,k).enqueueToCommandQ();		}
-	}
-	
+			AddToSetAndIncrementClock(); 
+		}
 	}
 
 
 private void AddToSetAndIncrementClock() {
-
 	
-		ArchitecturalComponent.getCores()[pipelineInterfaces.getCore().getTPC_number()][pipelineInterfaces.getCore().getSM_number()].clock.incrementClock();
-		if(GlobalClock.getCurrentTime()<ArchitecturalComponent.getCores()[pipelineInterfaces.getCore().getTPC_number()][pipelineInterfaces.getCore().getSM_number()].clock.getCurrentTime())
-			GlobalClock.setCurrentTime(ArchitecturalComponent.getCores()[pipelineInterfaces.getCore().getTPC_number()][pipelineInterfaces.getCore().getSM_number()].clock.getCurrentTime());
+		ArchitecturalComponent.getCores()[pipelineInterfaces.getCore().getTPC_number()][pipelineInterfaces.getCore().getSM_number()][pipelineInterfaces.getCore().getSP_number()].clock.incrementClock();
+		if(GlobalClock.getCurrentTime()<ArchitecturalComponent.getCores()[pipelineInterfaces.getCore().getTPC_number()][pipelineInterfaces.getCore().getSM_number()][pipelineInterfaces.getCore().getSP_number()].clock.getCurrentTime())
+			GlobalClock.setCurrentTime(ArchitecturalComponent.getCores()[pipelineInterfaces.getCore().getTPC_number()][pipelineInterfaces.getCore().getSM_number()][pipelineInterfaces.getCore().getSP_number()].clock.getCurrentTime());
 		blockState[currBlock].tot_cycles++;
 		
 		epochCount++;
-	if (epochCount % main.Main.SynchClockDomainsCycles ==0) {
-//		System.out.println("Synchronizing - Waiting at Phaser");
-		int phase = epochEnd.getPhase(); 
-		if (phase==previousPhase) {
-			long g=System.currentTimeMillis();
-			epochEnd.awaitAdvance(phase);
-		phaser_wait+=(System.currentTimeMillis()-g);
+		if (epochCount % main.Main.SynchClockDomainsCycles ==0) {
+			int phase = epochEnd.getPhase();
+			if (phase==previousPhase) {
+				long g=System.currentTimeMillis();
+				epochEnd.awaitAdvance(phase);
+				phaser_wait+=(System.currentTimeMillis()-g);
 			}
-			previousPhase = epochEnd.arrive();
-//			System.out.println("phaser wait for java thread"+javaTid+"is"+phaser_wait);
-			}
+		previousPhase = epochEnd.arrive();
+		}
 }
 
-	public int epochCount,previousPhase=-1;
+	public int epochCount,previousPhase=-1,previousCore=-1;
 	@SuppressWarnings("unused")
 	protected boolean processPacket(BlockState thread, Packet pnew, int Blocktid) {
 
 		
 		boolean isSpaceInPipelineBuffer = true;
 		
-		int GlobalId = javaTid * TOTALBLOCKS + Blocktid;
+		//int GlobalId = javaTid * TOTALBLOCKS + Blocktid;
 	
 		if (thread.isFirstPacket) 
 		{
 			
 			this.pipelineInterfaces.getCore().getExecEngine().setExecutionComplete(false);
 			
-			if(Blocktid>=maxCoreAssign)
-				maxCoreAssign = Blocktid+1;
+			if(Blocktid>=maxBlockAssign)
+				maxBlockAssign = Blocktid+1;
 
 			thread.packetList.add(pnew);
 			thread.isFirstPacket=false;
@@ -428,7 +472,7 @@ private void AddToSetAndIncrementClock() {
 			
 			thread.packetList.clear();
 			thread.packetList.add(pnew);
-			int newLength = inputToPipeline.size();
+			//int newLength = inputToPipeline.size();
 		}
 
 		return isSpaceInPipelineBuffer;
@@ -436,8 +480,7 @@ private void AddToSetAndIncrementClock() {
 
 	
 
-	private void checkForBlockingPacket(long value,int TidApp) {
-		// TODO Auto-generated method stub
+	/*private void checkForBlockingPacket(long value,int TidApp) {
 		int val=(int)value;
 		switch(val)
 		{
@@ -450,7 +493,6 @@ private void AddToSetAndIncrementClock() {
 	}
 	
 	private void checkForUnBlockingPacket(long value,int TidApp) {
-		// TODO Auto-generated method stub
 		int val=(int)value;
 		switch(val)
 		{
@@ -460,32 +502,21 @@ private void AddToSetAndIncrementClock() {
 		case BARRIERWAIT+1:threadBlockState[TidApp].gotUnBlockingPacket();
 		
 		}
-	}
+	}*/
+	
 	@SuppressWarnings("unused")
 	public void finishAllPipelines() {
 		while(true)
 		{
-			
-			if(maxCoreAssign>0) {
-//				for(int k=0;k<SystemConfig.mainMemoryConfig.numChans;k++){
-//					ArchitecturalComponent.getMainMemoryDRAMController(null,k).oneCycleOperation();}
+			if(maxBlockAssign>0) {
 					pipelineInterfaces.oneCycleOperation();
-						AddToSetAndIncrementClock(); 
-//						for(int k=0;k<SystemConfig.mainMemoryConfig.numChans;k++){
-//						ArchitecturalComponent.getMainMemoryDRAMController(null,k).enqueueToCommandQ();		}
-//						System.out.flush();
-		}
+					AddToSetAndIncrementClock(); 
+			}
 			
-	
 			if(pipelineInterfaces.containingExecutionEngine.WarpTable.size()==0)
 			{
 				break;
 			}
-			
-		//		System.out.println("pipeline size left is "+pipelineInterfaces.containingExecutionEngine.WarpTable.size());
 		}
-		
-		
-		
 	}
 }

@@ -23,10 +23,10 @@ package pipeline;
 
 import main.ArchitecturalComponent;
 import generic.Instruction;
-import generic.SM;
+import generic.SP;
 
 public class StageLatch_MII {
-	SM sm;
+	SP sp;
 	Instruction[] instructions;
 	long instructionCompletesAt[];	//used to indicate when the corresponding instruction is ready for
 									//consumption by the next stage;
@@ -39,9 +39,9 @@ public class StageLatch_MII {
 	int tail;
 	int curSize;
 	
-	public StageLatch_MII(int size,SM sm)
+	public StageLatch_MII(int size,SP sp)
 	{
-		this.sm=sm;
+		this.sp=sp;
 		this.size = size;
 		instructions = new Instruction[size];
 		instructionCompletesAt = new long[size];
@@ -100,7 +100,7 @@ public class StageLatch_MII {
 		
 		int retPos = (head + pos) % size;
 		
-		if(instructionCompletesAt[retPos] >ArchitecturalComponent.getCores()[sm.getTPC_number()][sm.getSM_number()].clock.getCurrentTime())
+		if(instructionCompletesAt[retPos] >ArchitecturalComponent.getCores()[sp.getTPC_number()][sp.getSM_number()][sp.getSP_number()].clock.getCurrentTime())
 		{
 			return null;
 		}
@@ -116,7 +116,7 @@ public class StageLatch_MII {
 		}
 		
 		Instruction toBeReturned = instructions[head];
-		if(instructionCompletesAt[head] > ArchitecturalComponent.getCores()[sm.getTPC_number()][sm.getSM_number()].clock.getCurrentTime())
+		if(instructionCompletesAt[head] > ArchitecturalComponent.getCores()[sp.getTPC_number()][sp.getSM_number()][sp.getSP_number()].clock.getCurrentTime())
 		{
 			return null;
 		}

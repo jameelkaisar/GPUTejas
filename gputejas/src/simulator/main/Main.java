@@ -35,6 +35,8 @@ import java.util.concurrent.*;
 import misc.Error;
 import misc.ShutDownHook;
 import config.SimulationConfig;
+import config.SmConfig;
+import config.SystemConfig;
 //import jsr166y.Phaser;
 import config.TpcConfig;
 import config.XMLParser;
@@ -53,7 +55,9 @@ import generic.Statistics;
 
 
 public class Main {
-	public final static int SynchClockDomainsCycles = 1000;
+	// I have reduced this from 1000 to the threads closely knitted together.
+	// Else, (MaxNumJavaThreads - 1) threads would deviate highly from GlobalClock.
+	public final static int SynchClockDomainsCycles = 50;
 
 	// the reader threads. Each thread reads from EMUTHREADS
 	public static SimplerRunnableThread [] runners;
@@ -70,7 +74,10 @@ public class Main {
 		return traceFileFolder;
 	}
 	public static int totalNumKernels;
-	
+	public static int totalNumCores;
+	public static int t0_x = 0;
+	public static int t0_y = 0;
+	public static int t0_z = 0;
 	
 	
 	@SuppressWarnings("unused")
@@ -94,30 +101,17 @@ public class Main {
 		System.out.println("Reading the configuration file");
 		XMLParser.parse(configFileName);
 		totalBlocks = new int[totalNumKernels];
+		totalNumCores = SystemConfig.NoOfTPC * TpcConfig.NoOfSM * SmConfig.NoOfSP;
 		
+		if (totalNumCores < SimulationConfig.MaxNumJavaThreads) {
+			SimulationConfig.MaxNumJavaThreads = totalNumCores;
+		}
 		
-		traceFileFolder = arguments[2] + "/" + SimulationConfig.MaxNumJavaThreads; 
+		traceFileFolder = arguments[2] + "/" + totalNumCores; 
 		initializeBlocksPerKernel();
 		initializeKernelHashfiles();
 	
-		final Phaser kernelEnd=new Phaser(SimulationConfig.MaxNumJavaThreads) {
-			protected boolean onAdvance(int phase, int registeredParties) {
-				System.err.println("In onadvance "+phase+ "with registered parties :"+registeredParties);
-
-				for(int i=0;i<SimulationConfig.MaxNumJavaThreads;i++)
-				{
-					try {
-						runners[i].initialize();
-						
-					} catch (Exception e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-				}
-				return false;
-			     }
-		};
-		
+		final Phaser coreEnd=new Phaser(SimulationConfig.MaxNumJavaThreads) {};
 		
 		final Phaser epochEnd=new Phaser(SimulationConfig.MaxNumJavaThreads) {
 			protected boolean onAdvance(int phase, int registeredParties) {
@@ -130,7 +124,7 @@ public class Main {
 					}
 				}
 				return false;
-			     }
+			}
 		};
 
 		runners = new SimplerRunnableThread[SimulationConfig.MaxNumJavaThreads];
@@ -139,25 +133,23 @@ public class Main {
 				
 		long startTime, endTime;
 		
-		
 		ipcBase=new SimplerFilePacket[SimulationConfig.MaxNumJavaThreads];
 		String name;
 
-		
-	
 		InstructionClassTable.createInstructionClassHandlerTable();
 		InstructionClassTable.createRegisterTable();
 		for (int i=0; i<SimulationConfig.MaxNumJavaThreads; i++) {
 			
-			
-		name = Integer.toString(i);
-		ipcBase[i]=new SimplerFilePacket(i);
-		int tpc_id=i/TpcConfig.NoOfSM;
-		int sm_id=i%TpcConfig.NoOfSM;
-		System.out.println(tpc_id+"TPC id"+"java thread"+i);
-		System.out.println(sm_id+"SM id"+"java thread"+i);
-
-		runners[i] = new SimplerRunnableThread(name,i, ipcBase[i], ArchitecturalComponent.getCores()[tpc_id][sm_id], epochEnd);
+			name = Integer.toString(i);
+			ipcBase[i]=new SimplerFilePacket(i);
+			int tpc_id=i / (TpcConfig.NoOfSM * SmConfig.NoOfSP);
+			int sm_id=(i / SmConfig.NoOfSP) % TpcConfig.NoOfSM;
+			int sp_id=i % SmConfig.NoOfSP;
+			System.out.println(tpc_id+"TPC id"+"java thread"+i);
+			System.out.println(sm_id+"SM id"+"java thread"+i);
+			System.out.println(sp_id+"SP id"+"java thread"+i);
+	
+			runners[i] = new SimplerRunnableThread(name,i, ipcBase[i], ArchitecturalComponent.getCores()[tpc_id][sm_id][sp_id], epochEnd, coreEnd);
 		
 		}
 
@@ -172,11 +164,6 @@ public class Main {
 		endTime = System.currentTimeMillis();
         allfinished=true;      
 		Statistics.printAllStatistics(traceFileFolder,startTime, endTime);
-		int TotalblocksExecuted=0, TotalblocksGiven=0;
-		for(int i=0;i<SimulationConfig.MaxNumJavaThreads;i++){
-			TotalblocksExecuted+=runners[i].blocksExecuted;
-//			System.out.println("NO. of blocks completed are for thread "+i+"blocks executed are"+runners[i].blocksExecuted);
-		}
 		statFileWritten = true;
 		System.out.println("\n\nSimulation completed !!");
 		
@@ -210,23 +197,17 @@ public class Main {
 					fos.close();
 				} catch (IOException e) {
 					e.printStackTrace();
-				}
-				
-			}
-			
-		}
-		
+				}	
+			}	
+		}	
 	}
 
-
 	public static void waitForJavaThreads() {
-		
-		try {		
+		try {
 			
 			for (int i=0; i<SimulationConfig.MaxNumJavaThreads; i++) {
 				ipcBase[i].free.acquire();	
 			}
-			
 			
 		} catch (InterruptedException ioe) {
 			misc.Error.showErrorAndExit("Wait for java threads interrupted !!");
@@ -238,7 +219,6 @@ public class Main {
 		for(int i=0;i<SimulationConfig.MaxNumJavaThreads;i++)
 			runners[i].t.start();
 		System.out.println("runners started for thread");
-	//	runners[0].t.start();
 	}
 	
 	public static KernelState currKernel = new KernelState();
@@ -253,18 +233,16 @@ public class Main {
 				File inputTraceFile = new File(Main.getTraceFileFolder()+"/"+0+"_"+i+".txt");
 				fis=new FileInputStream(inputTraceFile);
 				dis=new DataInputStream(new BufferedInputStream(fis, 64*1024));
-			
-		
 				dis.readInt();
 				totalBlocks[i]=dis.readInt();
 				dis.close();
 				fis.close();
 			} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		}
-		catch (IOException e) {
-			e.printStackTrace();
-		}
+				e.printStackTrace();
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
@@ -294,8 +272,5 @@ public class Main {
 			System.out.println("Time Taken\t=\t" + minutes + " : " + seconds + " minutes");
 			System.out.println("\n");
 	}
-	
-	
-	
-	}
 
+}

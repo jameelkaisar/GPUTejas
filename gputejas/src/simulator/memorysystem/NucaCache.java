@@ -38,7 +38,7 @@ import main.ArchitecturalComponent;
 import memorysystem.AddressCarryingEvent;
 import memorysystem.Cache;
 import memorysystem.CacheLine;
-import memorysystem.SMMemorySystem;
+import memorysystem.SPMemorySystem;
 import memorysystem.MESI;
 //import memorysystem.MSHR;
 //import memorysystem.nuca.RNucaBank.AddressType;
@@ -96,7 +96,7 @@ public class NucaCache extends Cache
     public static HashMap<ID, Integer> coreIdtoRId;
     
     public NucaCache(String cacheName, int id, CacheConfig cacheParameters,
-    		SMMemorySystem containingMemSys)
+    		SPMemorySystem containingMemSys)
 	{
 		super(cacheName, id, cacheParameters, containingMemSys);
         this.cacheBank =new Vector<Cache>(); //cache banks are added later

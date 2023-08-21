@@ -20,36 +20,35 @@ package pipeline;
 
 	Contributors:  Seep Goel, Geetika Malhotra, Harinder Pal
 *****************************************************************************/ 
-import generic.SM;
+import generic.SP;
 import generic.Event;
 import generic.EventQueue;
 import generic.RequestType;
 import memorysystem.AddressCarryingEvent;
-import memorysystem.SMMemorySystem;
+import memorysystem.Cache;
+import memorysystem.SPMemorySystem;
 
-public class GPUMemorySystem extends SMMemorySystem {
+public class GPUMemorySystem extends SPMemorySystem {
 	
 	GPUExecutionEngine containingExecEngine;
 	public int numOfLoads=0;
 	public long numOfStores;
-	public GPUMemorySystem(SM sm, int i)
+	
+	public GPUMemorySystem(SP sp, Cache cnCache, Cache shCache, Cache dtCache)
 	{
-		super(sm);
-		sm.getExecEngine().setCoreMemorySystem(this);
-		containingExecEngine = (GPUExecutionEngine)sm.getExecEngine();
+		super(sp, cnCache, shCache, dtCache);
+		sp.getExecEngine().setCoreMemorySystem(this);
+		containingExecEngine = (GPUExecutionEngine)sp.getExecEngine();
 	}
-	//To issue the request to instruction cache
+
 	@SuppressWarnings("unused")
 	public void issueRequestToInstrCache(long address)
 	{
-		GPUpipeline pipeline = (GPUpipeline)sm.getPipelineInterface();
-//		System.out.println("Issued to Instruction Caches"+sm.getTPC_number()+ sm.getSM_number());
+		GPUpipeline pipeline = (GPUpipeline)sp.getPipelineInterface();
 
-		AddressCarryingEvent addressEvent = new AddressCarryingEvent(getSM().getEventQueue(),
-				 iCache.getLatencyDelay(),this,  iCache, RequestType.Cache_Read, address, sm.getTPC_number(), sm.getSM_number());
+		AddressCarryingEvent addressEvent = new AddressCarryingEvent(getSP().getEventQueue(),
+				 iCache.getLatencyDelay(), this, iCache, RequestType.Cache_Read, address, sp.getTPC_number(), sp.getSM_number(), sp.getSP_number());
 
-		
-		//attempt issue to lower level cache
 		AddressCarryingEvent clone = (AddressCarryingEvent) addressEvent.clone();
 		boolean isAddedinLowerMshr = this.iCache.addEvent(clone);
 		if(!isAddedinLowerMshr)
@@ -63,21 +62,19 @@ public class GPUMemorySystem extends SMMemorySystem {
 	
 	@SuppressWarnings("unused")
 	@Override
-	public boolean issueRequestToConstantCache(RequestType requestType,
-			long address) throws Exception{
-		GPUpipeline inorderPipeline = (GPUpipeline)sm.getPipelineInterface();
-
+	public boolean issueRequestToConstantCache(RequestType requestType, long address) throws Exception{
+		GPUpipeline inorderPipeline = (GPUpipeline)sp.getPipelineInterface();
 		
-		AddressCarryingEvent addressEvent = new AddressCarryingEvent(getSM().getEventQueue(),
+		AddressCarryingEvent addressEvent = new AddressCarryingEvent(getSP().getEventQueue(),
 																	 constantCache.getLatencyDelay(),
 																	 this, 
 																	 constantCache,
 																	 requestType, 
 																	 address,
-																	 sm.getTPC_number(), sm.getSM_number() );
+																	 sp.getTPC_number(),
+																	 sp.getSM_number(),
+																	 sp.getSP_number());
 		
-	
-		//attempt issue to lower level cache
 		AddressCarryingEvent clone = (AddressCarryingEvent) addressEvent.clone();
 		boolean isAddedinLowerMshr = this.constantCache.addEvent(clone);
 		if(!isAddedinLowerMshr)
@@ -102,19 +99,14 @@ public class GPUMemorySystem extends SMMemorySystem {
 
 	@SuppressWarnings("unused")
 	@Override
-	public boolean issueRequestToSharedCache(RequestType requestType,
-			long address) {
-		GPUpipeline inorderPipeline = (GPUpipeline)sm.getPipelineInterface();
-
+	public boolean issueRequestToSharedCache(RequestType requestType, long address) {
+		GPUpipeline inorderPipeline = (GPUpipeline)sp.getPipelineInterface();
 		
-		AddressCarryingEvent addressEvent = new AddressCarryingEvent(getSM().getEventQueue(),
+		AddressCarryingEvent addressEvent = new AddressCarryingEvent(getSP().getEventQueue(),
 																	 sharedCache.getLatencyDelay(),
 																	 this, sharedCache, requestType, address,
-																	 sm.getTPC_number(), sm.getSM_number() );
+																	 sp.getTPC_number(), sp.getSM_number(), sp.getSP_number());
 		
-	
-		
-		//attempt issue to lower level cache
 		AddressCarryingEvent clone = (AddressCarryingEvent) addressEvent.clone();
 		boolean isAddedinLowerMshr = this.sharedCache.addEvent(clone);
 		if(!isAddedinLowerMshr)
@@ -137,19 +129,47 @@ public class GPUMemorySystem extends SMMemorySystem {
 		return true;
 	}
 	
+	@SuppressWarnings("unused")
+	public boolean issueRequestToDataCache(RequestType requestType, long address)
+	{
+		GPUpipeline inorderPipeline = (GPUpipeline)sp.getPipelineInterface();
+
+		AddressCarryingEvent addressEvent = new AddressCarryingEvent(getSP().getEventQueue(),
+																	 dCache.getLatencyDelay(),
+																	 this, dCache, requestType, address,
+																	 sp.getTPC_number(), sp.getSM_number(), sp.getSP_number());
+		
+		AddressCarryingEvent clone = (AddressCarryingEvent) addressEvent.clone();
+		boolean isAddedinLowerMshr = this.dCache.addEvent(clone);
+		if(!isAddedinLowerMshr)
+		{
+			misc.Error.showErrorAndExit("Unable to add event to shared Cache's MSHR !!" + 
+					"\nevent = " + addressEvent + 
+					"\niCache = " + this.dCache);
+		}
+		
+		containingExecEngine.updateNoOfMemRequests(1);
+		if(requestType == RequestType.Cache_Read)
+		{
+			containingExecEngine.updateNoOfLd(1);
+		}
+		else if(requestType == RequestType.Cache_Write)
+		{
+			containingExecEngine.updateNoOfSt(1);
+		}
+		
+		return true;
+	}
+	
 	@Override
 	public void handleEvent(EventQueue eventQ, Event event) {
 		
 		//handle memory response
-		
 		AddressCarryingEvent memResponse = (AddressCarryingEvent) event;
 		long address = memResponse.getAddress();
 		
-		//if response comes from iCache, inform fetchunit
 		if(memResponse.getRequestingElement() == iCache)
-			
-		{	
-//			System.out.println("calling from the gpumemorysystem i cache condition");
+		{
 			containingExecEngine.getScheduleUnit().processCompletionOfMemRequest(address);
 		}
 		else if(memResponse.getRequestingElement() == constantCache)
@@ -162,12 +182,15 @@ public class GPUMemorySystem extends SMMemorySystem {
 			containingExecEngine.getExecuteUnit().processCompletionOfMemRequest(address);
 		}
 		
+		else if (memResponse.getRequestingElement() == dCache)
+		{
+			containingExecEngine.getExecuteUnit().processCompletionOfMemRequest(address);
+		}
+		
 		else
 		{
 			System.out.println("mem response received by inordercoreMemSys from unkown object : " + memResponse.getRequestingElement());
 		}
 	}
-
-
-
+	
 }

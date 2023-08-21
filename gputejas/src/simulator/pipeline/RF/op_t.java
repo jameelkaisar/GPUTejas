@@ -2,11 +2,11 @@ package pipeline.RF;
 import java.util.BitSet;
 
 import pipeline.*;
-import generic.SM;
+import generic.SP;
 // Have to track each operand through before deciding to put in the event queue
 public class op_t {
 	private
-	SM sm;
+	SP sp;
 	GPUExecutionEngine containingExecutionEngine;
    boolean m_valid;
    Collector  m_cu; 

@@ -40,6 +40,7 @@ import config.EnergyConfig;
 
 import config.SimulationConfig;
 import config.SmConfig;
+import config.SpConfig;
 import config.SystemConfig;
 import config.TpcConfig;
 import config.SystemConfig.Interconnect;
@@ -54,10 +55,11 @@ public class Statistics {
 	
 	static float[] weightsArray;
 	static int currentSlice;
+	static int repetitions = Math.max(1, SimulationConfig.ThreadsPerCTA / SpConfig.NoOfThreadsSupported);
 	
 	static String benchmark;
 	
-	static long[][] smCycles;
+	static long[][] spCycles;
 	public static void printSystemConfig()
 	{
 		//read config.xml and write to output file
@@ -102,7 +104,7 @@ public class Statistics {
 				outputFileWriter.write("Average Read Latency: " + avgLatency + " cycles = " + (avgLatency/SmConfig.frequency* 1000) + " ns\n");
 				totalReadTransactions = ArchitecturalComponent.getMainMemoryDRAMController(null,k).getTotalReadTransactions();
 				totalWriteTransactions = ArchitecturalComponent.getMainMemoryDRAMController(null,k).getTotalWriteTransactions();
-				totalReadAndWrite=0L;			
+				totalReadAndWrite=0L;
 //		
 				for(int i=0;i<SystemConfig.mainMemoryConfig.numRanks;i++){
 					
@@ -128,7 +130,7 @@ public class Statistics {
 			}
 		
 			}
-		outputFileWriter.write("\n\n");
+		outputFileWriter.write("\n");
 			
 			
 		}
@@ -141,13 +143,15 @@ public class Statistics {
 	synchronized public static void calculateCyclesKernel(int javaTid)
 	{
 		try{
-			int lastIndex = javaTid % 16;
+			/*int lastIndex = javaTid % 16;
 			for(int i = 0; i < Main.runners[javaTid].TOTALBLOCKS ; i++)
-			{      // System.out.println(Main.runners[javaTid].ipcBase);
-                            //    System.out.println(Main.runners[javaTid].ipcBase.kernelExecuted);
-                             //   System.out.println(smCycles[Main.runners[javaTid].ipcBase.kernelExecuted][lastIndex]);
-				smCycles[Main.runners[javaTid].ipcBase.kernelExecuted][lastIndex] += Main.runners[javaTid].blockState[i].tot_cycles;
+			{      
+				spCycles[Main.runners[javaTid].ipcBase.kernelExecuted][lastIndex] += Main.runners[javaTid].blockState[i].tot_cycles;
 				lastIndex = ( lastIndex + SimulationConfig.MaxNumJavaThreads ) % 16;
+			}*/
+			for(int i = 0; i < Main.runners[javaTid].TOTALBLOCKS ; i++)
+			{
+				spCycles[Main.runners[javaTid].ipcBase.kernelExecuted][Main.runners[javaTid].ipcBase.coreid] += Main.runners[javaTid].blockState[i].tot_cycles;
 			}
 		}
 		catch(Exception e)
@@ -158,31 +162,31 @@ public class Statistics {
 		
 	}
 
-	
 	public static void printCycleStatistics()
 	{
 		long total_cycles = 0;
 		for(int i = 0; i < Main.totalNumKernels ; i++)
 		{
 			long kernelCycles = 0;
-			for(int j =0; j < 16; j++)
+			//for(int j =0; j < 16; j++)
+			for(int j =0; j < Main.totalNumCores; j++)
 			{
-				if(smCycles[i][j] > kernelCycles)
+				if(spCycles[i][j] > kernelCycles)
 				{
-					kernelCycles = smCycles[i][j];
+					kernelCycles = spCycles[i][j];
 				}
 			}
-			total_cycles += kernelCycles ;
+			total_cycles += kernelCycles;
 		}
 		System.out.println("****************************************************************************");
-		System.out.println("TOTAL INSTRUCTIONS = " + total_ins);
+		System.out.println("TOTAL INSTRUCTIONS = " + total_ins * repetitions);
 		System.out.println("TOTAL CYCLES = " + total_cycles);
 		System.out.println("TOTAL INSTRUCTIONS PER CYCLE = " + (double)(total_ins)/total_cycles);
 		System.out.println("****************************************************************************");
 		
 		try {
 			outputFileWriter.write("****************************************************************************\n");
-			outputFileWriter.write("TOTAL INSTRUCTIONS = " + total_ins + "\n");
+			outputFileWriter.write("TOTAL INSTRUCTIONS = " + total_ins * repetitions + "\n");
 			outputFileWriter.write("TOTAL CYCLES = " + total_cycles + "\n");
 			outputFileWriter.write("TOTAL INSTRUCTIONS PER CYCLE = " + (double)(total_ins)/total_cycles + "\n");
 			outputFileWriter.write("**************************************************************************** \n");
@@ -195,22 +199,26 @@ public class Statistics {
 	static void printEnergyStatistics()
 	{
 		EnergyConfig totalEnergy = new EnergyConfig(0, 0);
-		SM[][] sms = new SM [SystemConfig.NoOfTPC][TpcConfig.NoOfSM];
-		sms = ArchitecturalComponent.getCores();
+		SP[][][] sps = ArchitecturalComponent.getCores();
 		try {
-			// Cores
 			
+			// Cores
 			outputFileWriter.write("\n\n[ComponentName LeakageEnergy DynamicEnergy TotalEnergy NumDynamicAccesses] : \n");
 
 			EnergyConfig coreEnergy = new EnergyConfig(0, 0);
 
-			for(int i =0 ; i< SystemConfig.NoOfTPC; i++)
+			for(int i = 0; i< SystemConfig.NoOfTPC; i++)
 			{
 				for(int j = 0; j < TpcConfig.NoOfSM; j++)
-				{ 
-				SM core=sms[i][j];
-				coreEnergy.add(core.calculateAndPrintEnergy(outputFileWriter, "core["+i+"]["+j+"]"));
-			}
+				{
+					SP core=sps[i][j][0];
+					coreEnergy.add(core.calculateAndPrintSharedCacheEnergy(outputFileWriter, "core["+i+"]["+j+"]"));
+					for(int k = 0; k < SmConfig.NoOfSP; k++)
+					{
+						core=sps[i][j][k];
+						coreEnergy.add(core.calculateAndPrintEnergy(outputFileWriter, "core["+i+"]["+j+"]["+k+"]"));
+					}	
+				}
 			}
 			outputFileWriter.write("\n\n");
 			coreEnergy.printEnergyStats(outputFileWriter, "coreEnergy.total");
@@ -221,6 +229,8 @@ public class Statistics {
 			// Shared Cache
 			EnergyConfig sharedCacheEnergy = new EnergyConfig(0, 0);
 			for (Cache cache : ArchitecturalComponent.getSharedCacheList()) {
+				if (cache.cacheName.equals("L2")) //"L2[cachebank.size]" is the cache being used
+					continue;
 				sharedCacheEnergy.add(cache.calculateAndPrintEnergy(outputFileWriter, cache.cacheName));
 			}
 			
@@ -238,13 +248,13 @@ public class Statistics {
 				mainMemoryEnergy.add(memController.calculateAndPrintEnergy(outputFileWriter, name));
 			}
 			
-			outputFileWriter.write("\n");
+			outputFileWriter.write("\n\n");
 			mainMemoryEnergy.printEnergyStats(outputFileWriter, "mainMemoryControllerEnergy.total");
 			totalEnergy.add(mainMemoryEnergy);
 			
 			// Coherence
-			EnergyConfig coherenceEnergy = new EnergyConfig(0, 0);						
-			int coherenceId = 0;
+//			EnergyConfig coherenceEnergy = new EnergyConfig(0, 0);						
+//			int coherenceId = 0;
 			// TODO Directory Cache Power Estimation
 //			for(Coherence coherence : ArchitecturalComponent.coherences) {
 //				String name = "Coherence[" + coherenceId + "]";
@@ -252,9 +262,9 @@ public class Statistics {
 //				coherenceEnergy.add(coherence.calculateAndPrintEnergy(outputFileWriter, name));
 //			}
 //			
-			outputFileWriter.write("\n\n");
-			coherenceEnergy.printEnergyStats(outputFileWriter, "coherenceEnergy.total");
-			totalEnergy.add(coherenceEnergy);
+//			outputFileWriter.write("\n\n");
+//			coherenceEnergy.printEnergyStats(outputFileWriter, "coherenceEnergy.total");
+//			totalEnergy.add(coherenceEnergy);
 			
 			// Interconnect
 			EnergyConfig interconnectEnergy = new EnergyConfig(0, 0);
@@ -271,8 +281,6 @@ public class Statistics {
 			e.printStackTrace();
 		}
 	}
-	
-	
 	
 	public static void printMemorySystemStatistics()
 	{
@@ -297,51 +305,93 @@ public class Statistics {
 			long tot_sharedcache_access = 0;
 			long tot_sharedcache_misses = 0;
 			
+
+			long tot_dcache_access = 0;
+			long tot_dcache_misses = 0;
 			
+			Cache L2 = MemorySystem.cacheNameMappings.get("L2[0]");
+			long tot_L2cache_access = L2.noOfAccesses;
+			long tot_L2cache_misses = L2.misses;
 			
 			
 			//printing cache details 
-			SM[][] sms = new SM [SystemConfig.NoOfTPC][TpcConfig.NoOfSM];
-			sms = ArchitecturalComponent.getCores();
+			SP[][][] sps = new SP[SystemConfig.NoOfTPC][TpcConfig.NoOfSM][SmConfig.NoOfSP];
+			sps = ArchitecturalComponent.getCores();
 			for(int i =0 ; i< SystemConfig.NoOfTPC; i++)
 			{
 				for(int j = 0; j < TpcConfig.NoOfSM; j++)
 				{
 					
-					if(sms[i][j].getExecEngine().gpuMemorySystem.getiCache().noOfRequests == 0)
-					{
-						outputFileWriter.write("iCacheRequests are zero for SM "+j+" of TPC "+i+"\n");
-//						continue;
+					if (SimulationConfig.GPUType == GpuType.Ampere) {
+						outputFileWriter.write("SM : "+j+" of TPC : "+i+"\n");
+						outputFileWriter.write("L1Cache details"+"\n");
+						outputFileWriter.write("NO OF REQUESTS " +sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().noOfRequests+"\n");
+						tot_dcache_access += sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().noOfRequests;
+						outputFileWriter.write("NO OF HITS " +sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().hits+"\n");
+						outputFileWriter.write("NO OF MISSES " +sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().misses+"\n");
+						tot_dcache_misses += sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().misses;
 					}
-					outputFileWriter.write("SM : "+j+" of TPC : "+i+"\n");
-					outputFileWriter.write("iCache details"+"\n");
-					outputFileWriter.write("NO OF REQUESTS " +sms[i][j].getExecEngine().gpuMemorySystem.getiCache().noOfRequests+"\n");
-					tot_icache_access += sms[i][j].getExecEngine().gpuMemorySystem.getiCache().noOfRequests;
-					outputFileWriter.write("NO OF HITS " +sms[i][j].getExecEngine().gpuMemorySystem.getiCache().hits+"\n");
-					outputFileWriter.write("NO OF MISSES " +sms[i][j].getExecEngine().gpuMemorySystem.getiCache().misses+"\n");
-					tot_icache_misses += sms[i][j].getExecEngine().gpuMemorySystem.getiCache().misses;
 					
 					outputFileWriter.write("constantCache details"+"\n");
-					outputFileWriter.write("NO OF REQUESTS " +sms[i][j].getExecEngine().gpuMemorySystem.getConstantCache().noOfRequests+"\n");
-					tot_constantcache_access += sms[i][j].getExecEngine().gpuMemorySystem.getConstantCache().noOfRequests;
-					outputFileWriter.write("NO OF HITS " +sms[i][j].getExecEngine().gpuMemorySystem.getConstantCache().hits+"\n");
-					outputFileWriter.write("NO OF MISSES " +sms[i][j].getExecEngine().gpuMemorySystem.getConstantCache().misses+"\n");
-					tot_constantcache_misses += sms[i][j].getExecEngine().gpuMemorySystem.getConstantCache().misses;
+					outputFileWriter.write("NO OF REQUESTS " +sps[i][j][0].getExecEngine().gpuMemorySystem.getConstantCache().noOfRequests+"\n");
+					tot_constantcache_access += sps[i][j][0].getExecEngine().gpuMemorySystem.getConstantCache().noOfRequests;
+					outputFileWriter.write("NO OF HITS " +sps[i][j][0].getExecEngine().gpuMemorySystem.getConstantCache().hits+"\n");
+					outputFileWriter.write("NO OF MISSES " +sps[i][j][0].getExecEngine().gpuMemorySystem.getConstantCache().misses+"\n");
+					tot_constantcache_misses += sps[i][j][0].getExecEngine().gpuMemorySystem.getConstantCache().misses;
 					
 					outputFileWriter.write("sharedCache details"+"\n");
-					outputFileWriter.write("NO OF REQUESTS " +sms[i][j].getExecEngine().gpuMemorySystem.getSharedCache().noOfRequests+"\n");
-					tot_sharedcache_access += sms[i][j].getExecEngine().gpuMemorySystem.getSharedCache().noOfRequests;
-					outputFileWriter.write("NO OF HITS " +sms[i][j].getExecEngine().gpuMemorySystem.getSharedCache().hits+"\n");
-					outputFileWriter.write("NO OF MISSES " +sms[i][j].getExecEngine().gpuMemorySystem.getSharedCache().misses+"\n");
-					tot_sharedcache_misses = sms[i][j].getExecEngine().gpuMemorySystem.getSharedCache().misses ;
-					
+					outputFileWriter.write("NO OF REQUESTS " +sps[i][j][0].getExecEngine().gpuMemorySystem.getSharedCache().noOfRequests+"\n");
+					tot_sharedcache_access += sps[i][j][0].getExecEngine().gpuMemorySystem.getSharedCache().noOfRequests;
+					outputFileWriter.write("NO OF HITS " +sps[i][j][0].getExecEngine().gpuMemorySystem.getSharedCache().hits+"\n");
+					outputFileWriter.write("NO OF MISSES " +sps[i][j][0].getExecEngine().gpuMemorySystem.getSharedCache().misses+"\n\n");
+					tot_sharedcache_misses = sps[i][j][0].getExecEngine().gpuMemorySystem.getSharedCache().misses ;
+				
+					for(int k = 0; k < SmConfig.NoOfSP; k++)
+					{
+						if(sps[i][j][k].getExecEngine().gpuMemorySystem.getiCache().noOfRequests == 0)
+						{
+							outputFileWriter.write("iCacheRequests are zero for SM "+j+" of TPC "+i+"\n");
+//							continue;
+						}
+						outputFileWriter.write("SP : "+k+" of SM : "+j+" of TPC : "+i+"\n");
+						outputFileWriter.write("iCache details"+"\n");
+						outputFileWriter.write("NO OF REQUESTS " +sps[i][j][k].getExecEngine().gpuMemorySystem.getiCache().noOfRequests+"\n");
+						tot_icache_access += sps[i][j][k].getExecEngine().gpuMemorySystem.getiCache().noOfRequests;
+						outputFileWriter.write("NO OF HITS " +sps[i][j][k].getExecEngine().gpuMemorySystem.getiCache().hits+"\n");
+						outputFileWriter.write("NO OF MISSES " +sps[i][j][k].getExecEngine().gpuMemorySystem.getiCache().misses+"\n");
+						tot_icache_misses += sps[i][j][k].getExecEngine().gpuMemorySystem.getiCache().misses;
+						
+						if (SimulationConfig.GPUType != GpuType.Ampere) {
+							outputFileWriter.write("dCache details"+"\n");
+							outputFileWriter.write("NO OF REQUESTS " +sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().noOfRequests+"\n");
+							tot_dcache_access += sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().noOfRequests;
+							outputFileWriter.write("NO OF HITS " +sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().hits+"\n");
+							outputFileWriter.write("NO OF MISSES " +sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().misses+"\n");
+							tot_dcache_misses += sps[i][j][0].getExecEngine().gpuMemorySystem.getDataCache().misses;
+						}
+						
+						outputFileWriter.write("\n");
+					}
 				}
 			}
-			
 			outputFileWriter.write("****************************************************************************\n");
 			outputFileWriter.write("Cache details\n");
 			outputFileWriter.write("Total Instruction Cache Access " + tot_icache_access +"\n");
 			outputFileWriter.write("Total Instruction Cache Misses " + tot_icache_misses+"\n");
+			outputFileWriter.write("\n");
+			
+			if (SimulationConfig.GPUType == GpuType.Ampere) {
+				outputFileWriter.write("Total L1 Cache Access " + tot_dcache_access + "\n");
+				outputFileWriter.write("Total L1 Cache Misses " +  tot_dcache_misses + "\n");
+				outputFileWriter.write("\n");
+			} else {
+				outputFileWriter.write("Total Data Cache Access " + tot_dcache_access + "\n");
+				outputFileWriter.write("Total Data Cache Misses " +  tot_dcache_misses + "\n");
+				outputFileWriter.write("\n");
+			}
+			
+			outputFileWriter.write("Total L2 Cache Access " + tot_L2cache_access + "\n");
+			outputFileWriter.write("Total L2 Cache Misses " +  tot_L2cache_misses + "\n");
 			outputFileWriter.write("\n");
 			
 			outputFileWriter.write("Total Constant Cache Access " + tot_constantcache_access + "\n");
@@ -384,14 +434,14 @@ public class Statistics {
 			outputFileWriter.write("[Simulator Time]\n");
 			
 			outputFileWriter.write("Time Taken\t\t=\t" + minutes + " : " + seconds + " minutes\n");
-			outputFileWriter.write("Total Instructions executed : "+total_ins);
+			outputFileWriter.write("Total Instructions executed : "+total_ins * repetitions);
 			
 			outputFileWriter.write("\n");
 			outputFileWriter.write("Instructions per Second\t=\t" + 
-					(double)total_ins/simulationTime + " KIPS\t\t");
+					(double)(total_ins * repetitions)/simulationTime + " KIPS\t\t");
 						
 			System.out.println("\n\nInstructions per Second\t=\t" + 
-					(double)total_ins/simulationTime + " KIPS\t\t");
+					(double)(total_ins * repetitions)/simulationTime + " KIPS\t\t");
 			
 			outputFileWriter.write("\n");
 		}
@@ -401,18 +451,17 @@ public class Statistics {
 		}
 	}
 
-
-
-
 	public static void initStatistics()
 	{		
-		smCycles = new long[Main.totalNumKernels][16];
+		spCycles = new long[Main.totalNumKernels][Main.totalNumCores]; //[16];
 		for(int i = 0 ; i< Main.totalNumKernels ; i++)
 		{
-			smCycles[i] = new long[16]; 
-			for(int j = 0; j < 16; j++)
+			//spCycles[i] = new long[16]; 
+			//for(int j = 0; j < 16; j++)
+			spCycles[i] = new long[Main.totalNumCores]; 
+			for(int j = 0; j < Main.totalNumCores; j++)
 			{
-				smCycles[i][j] = 0;
+				spCycles[i][j] = 0;
 			}
 		}
 	}	
@@ -485,7 +534,6 @@ public class Statistics {
 		Statistics.benchmark = executableFile;
 	}
 
-	
 	public static void printAllStatistics(String benchmarkName, 
 			long startTime, long endTime) {
 	
@@ -532,6 +580,4 @@ public class Statistics {
 		return String.format("%.4f", d);
 	}
 	
-
-
 }

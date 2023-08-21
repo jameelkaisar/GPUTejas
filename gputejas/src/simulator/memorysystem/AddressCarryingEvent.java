@@ -42,7 +42,7 @@ public class AddressCarryingEvent extends Event implements Cloneable
 			SimulationElement processingElement,
 			RequestType requestType, long address) {
 		super(eventQ, eventTime, requestingElement, processingElement,
-				requestType, -1, -1);
+				requestType, -1, -1, -1);
 		this.address = address;
 		sourceId = null;
 		destinationId = null;
@@ -50,7 +50,7 @@ public class AddressCarryingEvent extends Event implements Cloneable
 	
 	public AddressCarryingEvent()
 	{
-		super(null, -1, null, null, RequestType.Cache_Read, -1, -1);
+		super(null, -1, null, null, RequestType.Cache_Read, -1, -1, -1);
 		this.address = -1;
 		sourceId = null;
 		destinationId = null;
@@ -60,10 +60,10 @@ public class AddressCarryingEvent extends Event implements Cloneable
 	public AddressCarryingEvent(EventQueue eventQ, long eventTime,
 			SimulationElement requestingElement,
 			SimulationElement processingElement,
-			RequestType requestType, long address,int tpcId, int  smId,
+			RequestType requestType, long address,int tpcId, int  smId, int spId,
 			Vector<Integer> sourceId, Vector<Integer> destinationId) {
 		super(eventQ, eventTime, requestingElement, processingElement,
-				requestType, tpcId, smId);
+				requestType, tpcId, smId, spId);
 		this.address = address;
 		this.sourceId = (Vector<Integer>) sourceId.clone();
 		this.destinationId = (Vector<Integer>) destinationId.clone();
@@ -72,10 +72,10 @@ public class AddressCarryingEvent extends Event implements Cloneable
 	public AddressCarryingEvent(long eventId, EventQueue eventQ, long eventTime,
 			SimulationElement requestingElement,
 			SimulationElement processingElement,
-			RequestType requestType, long address,int tpcId, int  smId,
+			RequestType requestType, long address,int tpcId, int smId, int spId,
 			Vector<Integer> sourceId, Vector<Integer> destinationId) {
 		super(eventQ, eventTime, requestingElement, processingElement,
-				requestType, tpcId, smId);
+				requestType, tpcId, smId, spId);
 		this.event_id = eventId;
 		this.address = address;
 		this.sourceId = (Vector<Integer>) sourceId.clone();
@@ -84,20 +84,21 @@ public class AddressCarryingEvent extends Event implements Cloneable
 	public AddressCarryingEvent(EventQueue eventQ, long eventTime,
 			SimulationElement requestingElement,
 			SimulationElement processingElement,
-			RequestType requestType, long address,int tpcId, int  smId) {
+			RequestType requestType, long address,int tpcId, int smId, int spId) {
 		super(eventQ, eventTime, requestingElement, processingElement,
-				requestType, tpcId, smId);
+				requestType, tpcId, smId, spId);
 		this.address = address;
 	}
 	
 	public AddressCarryingEvent updateEvent(EventQueue eventQ, long eventTime, 
 			SimulationElement requestingElement,
 			SimulationElement processingElement,
-			RequestType requestType, long address,int tpcId, int  smId,
+			RequestType requestType, long address,int tpcId, int smId, int spId,
 			Vector<Integer> sourceId, Vector<Integer> destinationId) {
 		this.address = address;
 		this.tpcId = tpcId;
 		this.smId = smId;
+		this.spId = spId;
 		return (AddressCarryingEvent)this.update(eventQ, eventTime, requestingElement, processingElement, requestType);
 	}
 	
@@ -105,10 +106,11 @@ public class AddressCarryingEvent extends Event implements Cloneable
 	public AddressCarryingEvent updateEvent(EventQueue eventQ, long eventTime, 
 			SimulationElement requestingElement,
 			SimulationElement processingElement,
-			RequestType requestType, long address,int tpcId, int  smId) {
+			RequestType requestType, long address,int tpcId, int smId, int spId) {
 		this.address = address;
 		this.tpcId = tpcId;
 		this.smId = smId;
+		this.spId = spId;
 		return (AddressCarryingEvent)this.update(eventQ, eventTime, requestingElement, processingElement, requestType);
 	}
 	
@@ -152,11 +154,11 @@ public class AddressCarryingEvent extends Event implements Cloneable
 	
 	public void dump()
 	{
-		System.out.println("TPC = " + tpcId + " SM = "+ smId + " : " + requestType + " : " + requestingElement + " : " + processingElement + " : " + eventTime + " : " + address);
+		System.out.println("TPC = " + tpcId + " SM = "+ smId + " : " + " SP = "+ spId + " : " + requestType + " : " + requestingElement + " : " + processingElement + " : " + eventTime + " : " + address);
 	}
 	
 	public String toString(){
-		String s = ("TPC = " + tpcId + " SM = "+ smId + " : " + requestType + " : " + requestingElement + " : " + processingElement + " : " + eventTime + " : " + address); 
+		String s = ("TPC = " + tpcId + " SM = "+ smId + " : " + " SP = "+ spId + " : " + requestType + " : " + requestingElement + " : " + processingElement + " : " + eventTime + " : " + address); 
 		return s;
 	}
 }

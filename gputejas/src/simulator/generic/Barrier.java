@@ -22,7 +22,7 @@
 package generic;
 
 import java.util.Vector;
-import generic.LocalClockperSm;
+import generic.LocalClockperSp;
 public class Barrier {
 	
 	long address;

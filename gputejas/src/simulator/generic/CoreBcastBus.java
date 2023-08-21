@@ -1,7 +1,7 @@
 package generic;
 
 import java.util.Vector;
-import generic.LocalClockperSm;
+import generic.LocalClockperSp;
 import emulatorinterface.SimplerRunnableThread;
 import main.ArchitecturalComponent;
 import memorysystem.AddressCarryingEvent;
@@ -22,12 +22,13 @@ public class CoreBcastBus extends SimulationElement{
 	public void handleEvent(EventQueue eventQ, Event event) {
 		int tpcId=((AddressCarryingEvent)event).tpcId;
 		int smId =((AddressCarryingEvent)event).smId;
+		int spId =((AddressCarryingEvent)event).spId;
 		System.out.println("handle event of core broadcast bus called");
 		if(event.getRequestType() == RequestType.TREE_BARRIER_RELEASE){
 			
 			
 			long barAddress = ((AddressCarryingEvent)event).getAddress();
-			ArchitecturalComponent.getCores()[((AddressCarryingEvent)event).tpcId][((AddressCarryingEvent)event).smId].activatePipeline();
+			ArchitecturalComponent.getCores()[tpcId][smId][spId].activatePipeline();
 			if((((AddressCarryingEvent)event).tpcId) * 2 < BarrierTable.barrierList.get(barAddress).numThreads){
 				this.getPort().put(new AddressCarryingEvent(
 						0,eventQ,
@@ -36,7 +37,7 @@ public class CoreBcastBus extends SimulationElement{
 						this, 
 						RequestType.TREE_BARRIER_RELEASE, 
 						barAddress,
-						tpcId,smId,((AddressCarryingEvent)event).getSourceId(),((AddressCarryingEvent)event).getDestinationId()));
+						tpcId,smId,spId,((AddressCarryingEvent)event).getSourceId(),((AddressCarryingEvent)event).getDestinationId()));
 				this.getPort().put(new AddressCarryingEvent(
 						0,eventQ,
 						1,
@@ -44,7 +45,7 @@ public class CoreBcastBus extends SimulationElement{
 						this, 
 						RequestType.TREE_BARRIER_RELEASE, 
 						barAddress,
-						tpcId,smId,((AddressCarryingEvent)event).getSourceId(),((AddressCarryingEvent)event).getDestinationId()));
+						tpcId,smId,spId,((AddressCarryingEvent)event).getSourceId(),((AddressCarryingEvent)event).getDestinationId()));
 			}
 		}
 		else if(event.getRequestType() == RequestType.TREE_BARRIER){
@@ -64,7 +65,7 @@ public class CoreBcastBus extends SimulationElement{
 						this, 
 						RequestType.TREE_BARRIER,
 						barAddress,
-						tpcId,smId,((AddressCarryingEvent)event).getSourceId(),((AddressCarryingEvent)event).getDestinationId()));
+						tpcId,smId,spId,((AddressCarryingEvent)event).getSourceId(),((AddressCarryingEvent)event).getDestinationId()));
 			}
 			else{
 				//System.out.println("Core Id : " + coreId );
@@ -74,7 +75,7 @@ public class CoreBcastBus extends SimulationElement{
 						//	BarrierTable.barrierReset(barAddress);
 				long barAddress = ((AddressCarryingEvent)event).getAddress();
 						this.getPort().put(new AddressCarryingEvent(0,eventQ,0,this,this,RequestType.TREE_BARRIER_RELEASE,barAddress,
-								tpcId,smId,((AddressCarryingEvent)event).getSourceId(),((AddressCarryingEvent)event).getDestinationId()));
+								tpcId,smId,spId,((AddressCarryingEvent)event).getSourceId(),((AddressCarryingEvent)event).getDestinationId()));
 					}
 //					else{
 //						this.getPort().put(new AddressCarryingEvent(0,eventQ,1,	this,this,RequestType.TREE_BARRIER, 
@@ -85,13 +86,13 @@ public class CoreBcastBus extends SimulationElement{
 //		}
 		 if(event.getRequestType() == RequestType.PIPELINE_RESUME){
 			for(int i : toResume){
-				ArchitecturalComponent.getCores()[tpcId][smId].activatePipeline();
+				ArchitecturalComponent.getCores()[tpcId][smId][spId].activatePipeline();
 				//SimplerRunnableThread.setThreadState(i,false);
 			}
 			toResume.clear();
 		}
 		else{
-			ArchitecturalComponent.getCores()[tpcId][smId].sleepPipeline();
+			ArchitecturalComponent.getCores()[tpcId][smId][spId].sleepPipeline();
 		}
 	}
 

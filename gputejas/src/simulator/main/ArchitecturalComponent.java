@@ -25,11 +25,11 @@ package main;
 import config.SystemConfig;
 import config.TpcConfig;
 import config.CacheConfig;
-import memorysystem.SMMemorySystem;
+import memorysystem.SPMemorySystem;
 import memorysystem.directory.CentralizedDirectoryCache;
 import memorysystem.NucaCache;
 import memorysystem.MemorySystem;
-import generic.SM;
+import generic.SP;
 import dram.MainMemoryDRAMController;
 import emulatorinterface.communication.IpcBase;
 import generic.CommunicationInterface;
@@ -37,7 +37,7 @@ import generic.CommunicationInterface;
 import generic.CoreBcastBus;
 import generic.EventQueue;
 import generic.GlobalClock;
-import generic.LocalClockperSm;
+import generic.LocalClockperSp;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,6 +48,7 @@ import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.Collection;
 import config.NetworkDelay;
+import config.SmConfig;
 import config.CacheConfig;
 import config.MainMemoryConfig;
 import config.SystemConfig;
@@ -66,7 +67,7 @@ import net.Router;
 public class ArchitecturalComponent {
 
 	//public static Vector<Vector<SM>> sm= new Vector<Vector<SM>>(); 
-	public static SM[][] cores;
+	public static SP[][][] cores;
 	public static long tomemory;
 	public static Vector<Cache> sharedCaches = new Vector<Cache>();
 	public static Vector<Cache> caches = new Vector<Cache>();
@@ -101,35 +102,35 @@ public static void createChip() {
 			((NOC)interconnect).ConnectNOCElements();
 		}
 		
-		
 		initMemorySystem(getCores());
 		initCoreBroadcastBus();
 		MemorySystem.createLinkBetweenCaches();
 		GlobalClock.setCurrentTime(0);
 		
 	}
-	public static SM[][] initCores()
+	public static SP[][][] initCores()
 	{
 		System.out.println("initializing cores...");
 		
-		
-		SM[][] sms = new SM[SystemConfig.NoOfTPC][TpcConfig.NoOfSM];
+		SP[][][] sps = new SP[SystemConfig.NoOfTPC][TpcConfig.NoOfSM][SmConfig.NoOfSP];
 		for (int i=0; i<SystemConfig.NoOfTPC; i++)
 		{
-			for(int j =0; j<TpcConfig.NoOfSM; j++)
+			for(int j=0; j<TpcConfig.NoOfSM; j++)
 			{
-				sms[i][j] = new SM(i, j);
+				for (int k=0; k<SmConfig.NoOfSP; k++)
+				{
+					sps[i][j][k] = new SP(i, j, k);
+				}
 			}
-		
 		}
-		return sms;
+		return sps;
 	}
 	
-	public static SM[][] getCores() {
+	public static SP[][][] getCores() {
 		return cores;
 	}
 
-	public static void setCores(SM[][] cores) {
+	public static void setCores(SP[][][] cores) {
 		ArchitecturalComponent.cores = cores;
 	}
 
@@ -138,9 +139,12 @@ public static void createChip() {
 		long noOfInstsExecuted = 0;
 		for(int i = 0; i < ArchitecturalComponent.getCores().length; i++)
 		{
-			for(int j =0 ; j<ArchitecturalComponent.getCores()[i].length ; j++ )
+			for(int j = 0 ; j < ArchitecturalComponent.getCores()[i].length; j++ )
 			{
-				noOfInstsExecuted += ArchitecturalComponent.getCores()[i][j].getNoOfInstructionsExecuted();
+				for (int k = 0; k < ArchitecturalComponent.getCores()[i][j].length; k++)
+				{
+					noOfInstsExecuted += ArchitecturalComponent.getCores()[i][j][k].getNoOfInstructionsExecuted();
+				}
 			}
 			
 		}
@@ -148,36 +152,33 @@ public static void createChip() {
 	}
 
 		
-	private static SMMemorySystem[][] coreMemSysArray;
-	public static SMMemorySystem[][] getCoreMemSysArray()
+	private static SPMemorySystem[][][] coreMemSysArray;
+	public static SPMemorySystem[][][] getCoreMemSysArray()
 	{
 		return coreMemSysArray;
 	}
 private static void createElementsOfBus() {
 	
-	
-		
-		
 		BusInterface busInterface;
-		SM[][] sms = initCores();
+		SP[][][] sps = initCores();
 		for(int i=0;i<SystemConfig.NoOfTPC;i++){
 			for(int j=0;j<TpcConfig.NoOfSM;j++){
-				busInterface= new BusInterface(bus);
-				sms[i][j].setComInterface(busInterface);
+				for(int k=0;k<SmConfig.NoOfSP;k++){
+					busInterface= new BusInterface(bus);
+					sps[i][j][k].setComInterface(busInterface);
+				}
 			}
 		}
-		setCores(sms);
-		
+		setCores(sps);
 		
 		for(CacheConfig cacheConfig : SystemConfig.sharedCacheConfigs) {
 			busInterface = new BusInterface(bus);
 			Cache c = MemorySystem.createSharedCache(cacheConfig.cacheName, busInterface);
 		}
 		
-		
-
 //		System.out.println(SystemConfig.mainMemoryConfig.numChans);
-		if(SystemConfig.memControllerToUse==true){
+		if(SystemConfig.memControllerToUse==true)
+		{
 			for(int i=0;i<SystemConfig.mainMemoryConfig.numChans;i++){
 				MainMemoryDRAMController mainMemController = new MainMemoryDRAMController(SystemConfig.mainMemoryConfig);
 				mainMemController.setChannelNumber(i);
@@ -186,7 +187,8 @@ private static void createElementsOfBus() {
 				memoryControllers.add(mainMemController);
 			}
 		}
-		else{
+		else
+		{
 			MainMemoryDRAMController mainMemController = new MainMemoryDRAMController(SystemConfig.mainMemoryConfig);
 				mainMemController.setChannelNumber(0);
 				busInterface = new BusInterface(bus);
@@ -194,7 +196,7 @@ private static void createElementsOfBus() {
 				memoryControllers.add(mainMemController);
 		}
 		
-		}
+	}
 //	
 @SuppressWarnings("unused")
 private static void createElementsOfNOC() {
@@ -205,6 +207,7 @@ private static void createElementsOfNOC() {
 	
 	int TPC_number=-1;
 	int SM_number_withinTPC=-1;    
+	int SP_number_withinTPC=-1;
 	setCores(initCores());
 	//create elements mentioned as topology file
 	BufferedReader readNocConfig = NOC.openTopologyFile(SystemConfig.nocConfig.NocTopologyFile);
@@ -246,7 +249,7 @@ private static void createElementsOfNOC() {
 				}else{
 					SM_number_withinTPC++;
 					//System.out.println("( "+TPC_number+" "+SM_number_withinTPC+" )");
-					cores[TPC_number][SM_number_withinTPC].setComInterface(comInterface);
+					cores[TPC_number][SM_number_withinTPC][SP_number_withinTPC].setComInterface(comInterface);
 				}
 			} else if(nextElementToken.equals("M")) {
 				MainMemoryDRAMController mainMemController = new MainMemoryDRAMController(SystemConfig.mainMemoryConfig);
@@ -280,7 +283,7 @@ private static void createElementsOfNOC() {
 		}
 	}
 }	
-	public static void initMemorySystem(SM[][] sms) {
+	public static void initMemorySystem(SP[][][] sps) {
 		coreMemSysArray = MemorySystem.initializeMemSys(ArchitecturalComponent.getCores());		
 	}
 	private static ArrayList<Router> nocRouterList = new ArrayList<Router>();
@@ -289,8 +292,8 @@ private static void createElementsOfNOC() {
 		nocRouterList.add(router);		
 	}
 	
-	public static SM createSM(int tpc_number, int sm_number){
-		return new SM(tpc_number, sm_number);
+	public static SP createSM(int tpc_number, int sm_number, int sp_number){
+		return new SP(tpc_number, sm_number, sp_number);
 	}
 	
 	public static ArrayList<Router> getNOCRouterList() {

@@ -26,28 +26,29 @@ import java.io.FileWriter;
 import java.io.IOException;
 
 import main.ArchitecturalComponent;
+import config.CacheConfig.WritePolicy;
 import config.EnergyConfig;
+import config.OperationEnergyConfig;
 import config.OperationLatencyConfig;
+import config.SimulationConfig;
+import config.SmConfig;
+import config.SpConfig;
 import generic.Event;
 import generic.EventQueue;
 import generic.GenericCircularQueue;
+import generic.GpuType;
 import generic.Instruction;
 import generic.OperationType;
 import generic.PortType;
 import generic.RequestType;
-import generic.SM;
+import generic.SP;
 import generic.SimulationElement;
 import pipeline.StageLatch_MII;
 
 
-
-//TODO this file is total bullshit No real scheduling happening in the code
-// Totally wrong code in this file have to correct the entire thing
-// Schedules after the warps are drained in the event Queue
 public class ScheduleUnit extends SimulationElement{
 	
-	
-	SM sm;
+	SP sp;
 	GPUExecutionEngine containingExecutionEngine;
 	
 	public GenericCircularQueue<Instruction> inputToPipeline;
@@ -55,6 +56,7 @@ public class ScheduleUnit extends SimulationElement{
 	public StageLatch_MII scheduleExecuteLatch;
 	Instruction fetchedInstruction;
 	boolean fetchedInstructionStatus;
+	static int repetitions = Math.max(1, SimulationConfig.ThreadsPerCTA / SpConfig.NoOfThreadsSupported); //ocelot generates traces for {ThreadsPerCTA} number of threads. timings need to account for the number of repetitions required to actually execute all of them.
 ///////////////////////////////////////////////////////////////////////
 	int loadaccess;
 	int storeaccess;
@@ -70,16 +72,17 @@ public class ScheduleUnit extends SimulationElement{
 	int callaccess;
 	int returnaccess;
 	int exitaccess;
-	long numAccesses = 0;
+	long numAccesses;
 	//////////////////////////////////////////////////
-	public ScheduleUnit(SM sm, EventQueue eventQueue, GPUExecutionEngine execEngine) {
+	public ScheduleUnit(SP sp, EventQueue eventQueue, GPUExecutionEngine execEngine) {
 		super(PortType.Unlimited, -1, -1, eventQueue, -1, -1);
-		this.sm = sm;
+		this.sp = sp;
 		this.containingExecutionEngine = execEngine;
-		this. scheduleExecuteLatch = execEngine.getScheduleExecuteLatch();
+		this.scheduleExecuteLatch = execEngine.getScheduleExecuteLatch();
 		this.fetchedInstruction = null;
 		this.fetchedInstructionStatus = false;
-		this.completeWarpPipeline=new GenericCircularQueue<Instruction>(Instruction.class, 4000000);
+		
+		/* class variables don't require initialisation to 0
 		loadaccess=0;
 		storeaccess=0;
 		addressaccess=0;
@@ -94,55 +97,49 @@ public class ScheduleUnit extends SimulationElement{
 		callaccess=0;
 		returnaccess=0;
 		exitaccess=0;
+		numAccesses = 0;*/
 		
 	}
 
 	public void fetchInstruction()
-	
 	{
-
-		 
 		if(this.fetchedInstruction != null)
 		{
-//			System.out.println("not null"); 
 			return;
 		}
 		
 		Instruction newInstruction = completeWarpPipeline.pollFirst();
 		if(newInstruction!=null){
-		if(newInstruction.getOperationType() == OperationType.inValid) {
-			this.fetchedInstruction = newInstruction;
-			this.fetchedInstructionStatus = true;
+			if(newInstruction.getOperationType() == OperationType.inValid) {
+				this.fetchedInstruction = newInstruction;
+				this.fetchedInstructionStatus = true;
+			}
+			else
+			{
+				this.fetchedInstruction =  newInstruction;
+				this.fetchedInstructionStatus = true;
+				containingExecutionEngine.gpuMemorySystem.issueRequestToInstrCache(newInstruction.getCISCProgramCounter());
+			}
 		}
-		else
-		{
-			this.fetchedInstruction =  newInstruction;
-			this.fetchedInstructionStatus = true;
-			containingExecutionEngine.gpuMemorySystem.issueRequestToInstrCache(newInstruction.getCISCProgramCounter());
-		}}
-		
 	}
+	
 	public void performSchedule(GPUpipeline inorderPipeline)
 	{
-//		System.out.println("in schedule unit");
 		if(scheduleExecuteLatch.isFull() == true)
 		{
 			System.out.println("is Full");
 			return;
 		}
-//		System.out.println("Fetched instruction is"+this.fetchedInstructionStatus);
 		if(!this.fetchedInstructionStatus)
 		{
 			containingExecutionEngine.incrementInstructionMemStall(1); 
-//			System.out.println("Incremented Instruction Memory Stall");
 		}
 		else
 		{
 			Instruction newInstruction = this.fetchedInstruction;
 			this.fetchedInstruction = null;
 			this.fetchedInstructionStatus = false;
-//			System.out.println(newInstruction.getOperationType()+"is the operation type here");
-			long latency;
+			long latency = 0;
 			if(newInstruction==null || newInstruction.getOperationType() == null) {
 				this.fetchedInstruction = null;
 				this.fetchedInstructionStatus = false;
@@ -152,14 +149,48 @@ public class ScheduleUnit extends SimulationElement{
 
 			switch(newInstruction.getOperationType())
 			{
-			
 				case load:
-					latency = OperationLatencyConfig.loadLatency;
-					loadaccess++;
+					loadaccess += repetitions;
+					if (SimulationConfig.GPUType == GpuType.Ampere)
+						latency = SmConfig.L1Cache.latency;
+					else
+						latency = SpConfig.dCache.latency;
+					for(int i =0; i < newInstruction.MemoryAddresses.length; i++)
+					{
+						boolean memReqIssued = false;
+						try{
+							if(newInstruction.MemoryAddresses[i] == null)
+							{
+								break;
+							}
+							else
+							{
+								memReqIssued = containingExecutionEngine.gpuMemorySystem.issueRequestToDataCache(
+								RequestType.Cache_Read,	newInstruction.MemoryAddresses[i]);
+								if(!memReqIssued)
+								{
+									System.out.println("Memory request not issuesd");
+									System.exit(0);
+								}
+								
+							}
+						}
+							
+							
+						catch(Exception e)
+						{
+							e.printStackTrace();
+							System.exit(0);
+							return;
+						}
+						containingExecutionEngine.pendingLoads++;
+						main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_flag = true;
+					}
 					break;
 					
 				case load_const:
-					loadaccess++;
+					loadaccess += repetitions;
+					latency = SmConfig.constantCache.latency;
 					for(int i =0; i < newInstruction.MemoryAddresses.length; i++)
 					{
 						boolean memReqIssued = false;
@@ -192,10 +223,10 @@ public class ScheduleUnit extends SimulationElement{
 						containingExecutionEngine.pendingLoads++;
 						main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_flag = true;
 					}
-					latency = Long.MAX_VALUE;
 					break;				
 				case load_shared:
-					loadaccess++;
+					loadaccess += repetitions;
+					latency = SmConfig.sharedCache.latency;
 					for(int i =0; i < newInstruction.MemoryAddresses.length; i++)
 					{
 						boolean memReqIssued = false;
@@ -226,14 +257,49 @@ public class ScheduleUnit extends SimulationElement{
 						containingExecutionEngine.pendingLoads++;
 						main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_flag = true;
 					}
-					latency = Long.MAX_VALUE;
 					break;
 				case store:
-					storeaccess++;
-					latency = OperationLatencyConfig.storeLatency;
+					storeaccess += repetitions;
+					if (SimulationConfig.GPUType == GpuType.Ampere && SmConfig.L1Cache.writePolicy == WritePolicy.WRITE_BACK)
+						latency = SmConfig.L1Cache.latency;
+					else if (SpConfig.dCache.writePolicy == WritePolicy.WRITE_BACK)
+						latency = SpConfig.dCache.latency;
+					else
+						latency = OperationLatencyConfig.storeLatency;
+					for(int i =0; i < newInstruction.MemoryAddresses.length; i++)
+					{
+						boolean memReqIssued = false;
+						try{
+							if(newInstruction.MemoryAddresses[i] == null)
+							{
+								break;
+							}
+							else
+							{
+								memReqIssued = containingExecutionEngine.gpuMemorySystem.issueRequestToDataCache(
+								RequestType.Cache_Write,
+								newInstruction.MemoryAddresses[i]);
+								if(!memReqIssued)
+								{
+									System.out.println("Memory request not issuesd");
+									System.exit(0);
+									
+								}
+							}
+						}
+						catch(Exception e)
+						{e.printStackTrace();
+							System.exit(0);
+							return;
+						}
+					}
 					break;
 				case store_const:
-					storeaccess++;
+					storeaccess += repetitions;
+					if (SmConfig.constantCache.writePolicy == WritePolicy.WRITE_BACK)
+						latency = SmConfig.constantCache.latency;
+					else
+						latency = OperationLatencyConfig.storeLatency;
 					for(int i =0; i < newInstruction.MemoryAddresses.length; i++)
 					{
 						boolean memReqIssued = false;
@@ -264,7 +330,11 @@ public class ScheduleUnit extends SimulationElement{
 					latency = OperationLatencyConfig.storeLatency;
 					break;
 				case store_shared:
-					storeaccess++;
+					storeaccess += repetitions;
+					if (SmConfig.sharedCache.writePolicy == WritePolicy.WRITE_BACK)
+						latency = SmConfig.sharedCache.latency;
+					else
+						latency = OperationLatencyConfig.storeLatency;
 					for(int i =0; i < newInstruction.MemoryAddresses.length; i++)
 					{
 						boolean memReqIssued = false;
@@ -278,7 +348,7 @@ public class ScheduleUnit extends SimulationElement{
 								memReqIssued = containingExecutionEngine.gpuMemorySystem.issueRequestToSharedCache(
 								RequestType.Cache_Write,
 								newInstruction.MemoryAddresses[i]);
-								System.out.println("Memory Request Issued");
+								//System.out.println("Memory Request Issued");
 								if(!memReqIssued)
 								{
 									System.out.println("Memory request not issuesd");
@@ -294,62 +364,61 @@ public class ScheduleUnit extends SimulationElement{
 							return;
 						}
 					}
-					latency = OperationLatencyConfig.storeLatency;
 					break;
 				case address:
-					addressaccess++;
+					addressaccess += repetitions;
 					latency = OperationLatencyConfig.addressLatency;
 					break;
 				case integerALU:
-					intALUaccess++;
+					intALUaccess += repetitions;
 					latency = OperationLatencyConfig.intALULatency;
 					break;
 				case integerMul:
-					intMULaccess++;
+					intMULaccess += repetitions;
 					latency = OperationLatencyConfig.intMULLatency;
 					break;
 				case integerDiv:
-					intDIVaccess++;
+					intDIVaccess += repetitions;
 					latency = OperationLatencyConfig.intDIVLatency;
 					break;
 				case floatALU:
-					floatALUaccess++;
+					floatALUaccess += repetitions;
 					latency = OperationLatencyConfig.floatALULatency;
 					break;
 				case floatMul:
-					floatMULaccess++;
+					floatMULaccess += repetitions;
 					latency = OperationLatencyConfig.floatMULLatency;
 					break;
 				case floatDiv:
-					floatDIVaccess++;
+					floatDIVaccess += repetitions;
 					latency = OperationLatencyConfig.floatDIVLatency;
 					break;
 				case predicate:
-					predicateaccess++;
+					predicateaccess += repetitions;
 					latency = OperationLatencyConfig.predicateLatency;
 					break;
 				case branch:
-					branchaccess++;
+					branchaccess += repetitions;
 					latency = OperationLatencyConfig.branchLatency;
 					break;
 				case call:
-					callaccess++;
+					callaccess += repetitions;
 					latency = OperationLatencyConfig.callLatency;
 					break;
 				case Return:
-					returnaccess++;
+					returnaccess += repetitions;
 					latency = OperationLatencyConfig.returnLatency;
 					break;
 				case exit:
-					exitaccess++;
+					exitaccess += repetitions;
 					latency = OperationLatencyConfig.exitLatency;
 					break;
 				default:
 					latency = 1;
 					break;
 			}
-			this.scheduleExecuteLatch.add(newInstruction, ArchitecturalComponent.getCores()[this.containingExecutionEngine.containingCore.getTPC_number()][this.containingExecutionEngine.containingCore.getSM_number()].clock.getCurrentTime() + latency);
-//		System.out.println("Instruction Scheduled");
+			numAccesses += repetitions;
+			this.scheduleExecuteLatch.add(newInstruction, ArchitecturalComponent.getCores()[this.containingExecutionEngine.containingCore.getTPC_number()][this.containingExecutionEngine.containingCore.getSM_number()][this.containingExecutionEngine.containingCore.getSP_number()].clock.getCurrentTime() + latency*repetitions);
 		}
 		fetchInstruction();
 	}
@@ -365,7 +434,6 @@ public class ScheduleUnit extends SimulationElement{
 	}
 
 	public void processCompletionOfMemRequest(long requestedAddress) {
-	//	System.out.println(this.fetchedInstruction.getCISCProgramCounter() == requestedAddress);
 			if(this.fetchedInstruction != null && 
 					this.fetchedInstruction.getCISCProgramCounter() == requestedAddress && 
 					this.fetchedInstructionStatus==false){
@@ -374,41 +442,33 @@ public class ScheduleUnit extends SimulationElement{
 		}
 
 	public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException
-	{ // Actually Latch Decode Power 
+	{ 
+		EnergyConfig totalfupower = new EnergyConfig(0, 0);
+		
+		// Actually Latch Decode Power 
 		EnergyConfig decodepower = new EnergyConfig(containingExecutionEngine.getContainingCore().getDecodePower(), numAccesses);
 		decodepower.printEnergyStats(outputFileWriter, componentName+".decoder");
-		EnergyConfig totalfupower = new EnergyConfig(0, 0);
-		EnergyConfig intSppower= new EnergyConfig(0,0);
-		// TODO add values here
-		EnergyConfig floatSpPower= new EnergyConfig(0,0);
-		EnergyConfig ComplexSpPower= new EnergyConfig(0,0);
-		totalfupower.add(intSppower);
-		totalfupower.printEnergyStats(outputFileWriter, componentName+".totalalu");
+		totalfupower.add(decodepower);
+		
+		double energy = loadaccess * OperationEnergyConfig.loadEnergy + 
+					storeaccess * OperationEnergyConfig.storeEnergy + 
+					addressaccess * OperationEnergyConfig.addressEnergy +
+					intALUaccess * OperationEnergyConfig.intALUEnergy +
+					intMULaccess * OperationEnergyConfig.intMULEnergy +
+					intDIVaccess * OperationEnergyConfig.intDIVEnergy +
+					floatALUaccess * OperationEnergyConfig.floatALUEnergy +
+					floatMULaccess * OperationEnergyConfig.floatMULEnergy +
+					floatDIVaccess * OperationEnergyConfig.floatDIVEnergy +
+					predicateaccess * OperationEnergyConfig.predicateEnergy +
+					branchaccess * OperationEnergyConfig.branchEnergy +
+					callaccess * OperationEnergyConfig.callEnergy +
+					returnaccess * OperationEnergyConfig.returnEnergy +
+					exitaccess * OperationEnergyConfig.exitEnergy;
+		EnergyConfig alupower = new EnergyConfig(0,energy);
+		alupower.printEnergyStats(outputFileWriter, componentName+".totalalu");
+		totalfupower.add(alupower);
+		
 		return totalfupower;
 	}
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 	
 }

@@ -15,10 +15,10 @@ import config.SystemConfig;
 import dram.BankState.CurrentBankState;
 import dram.MainMemoryBusPacket.BusPacketType;
 import generic.GlobalClock;
-import generic.SM;
+import generic.SP;
 import generic.Event;
 import generic.EventQueue;
-import generic.LocalClockperSm;
+import generic.LocalClockperSp;
 import generic.RequestType;
 import generic.SimulationElement;
 import main.ArchitecturalComponent;
@@ -30,10 +30,7 @@ import misc.Error;
 
 public class MainMemoryDRAMController extends MainMemoryController{
 	
-	private int numTransactions;
-	
-	//how many CPU clock cycles to next RAM cycle
-	//int nextTick = 0;
+	//private int numTransactions;
 
 	int channel;        //channel number for this mem controller
 	long busFreeTime = 0L;    //for keeping track of when the bus is free
@@ -46,17 +43,13 @@ public class MainMemoryDRAMController extends MainMemoryController{
 	Cache parentCache;
 	int refreshRank;
 	
-	//for statistics
 	long totalTime = 0;
-	long totalTransactions = 0;
 	long totalReadTransactions[][];
 	long totalWriteTransactions[][];
 	
-//	PriorityBlockingQueue<MainMemoryBusPacket> pendingTransQueue;
-	ArrayList<MainMemoryBusPacket> pendingTransQueue;
-
-	//MainMemoryBusPacket pendingTransQueue[]; 	//to keep track of packets that could not be added to command queue 
-	BankState bankStates[][];						
+	//PriorityBlockingQueue<MainMemoryBusPacket> pendingTransQueue;
+	ArrayList<MainMemoryBusPacket> pendingTransQueue; //to keep track of packets that could not be added to command queue
+	BankState bankStates[][];
 	CommandQueue commandQueue;
 	Rank ranks[];
 	int refreshCount[];
@@ -70,7 +63,7 @@ public class MainMemoryDRAMController extends MainMemoryController{
 	
 		this.mainMemoryConfig = mainMemoryConfig;
 	
-		numTransactions = 0;
+		//numTransactions = 0;
 		refreshRank=0;
 		ranks = new Rank[mainMemoryConfig.numRanks];
 		bankStates = new BankState[mainMemoryConfig.numRanks][mainMemoryConfig.numBanks];
@@ -83,7 +76,7 @@ public class MainMemoryDRAMController extends MainMemoryController{
 			{
 				bankStates[i][j] = new BankState();
 			}
-		ranks[i] = new Rank(mainMemoryConfig,i,this);
+			ranks[i] = new Rank(mainMemoryConfig,i,this,bankStates[i]);
 		}
 		
 		pendingTransQueue=new ArrayList<MainMemoryBusPacket>();
@@ -95,16 +88,16 @@ public class MainMemoryDRAMController extends MainMemoryController{
 		for(int i=0;i<mainMemoryConfig.numRanks;i++){
 			refreshCount[i]=(int)((mainMemoryConfig.RefreshPeriod/mainMemoryConfig.tCK)/mainMemoryConfig.numRanks)*(i+1);
 		}
-		File outputFile = new File("dram.txt");
+		
+		/*File outputFile = new File("dram.txt");
 		try {
 			outputFileWriter = new FileWriter(outputFile);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
+		}*/
 	}
 	
-
 	@Override
 	public synchronized  void handleEvent(EventQueue eventQ, Event e)
 	{
@@ -125,16 +118,12 @@ public class MainMemoryDRAMController extends MainMemoryController{
 
 		if(e.getRequestType() == RequestType.Mem_Cntrlr_State_Update) {
 			
-			
 			StateUpdateEvent event = (StateUpdateEvent) e;
-//			
 			
-			int rank = event.getRank(); 
-//			System.out.println(e.getRequestType()+"rank is "+rank+" in handle event of DRAM");
-			
+			int rank = event.getRank();
 			int bank = event.getBank();
-			long eventTime = event.getEventTime();		//IMP: the reference for timing should be the time previous event was generated
-														//and not the current clock cycle as these 2 may differ sometimes!
+			long eventTime = event.getEventTime();	//IMP: the reference for timing should be the time previous event was generated
+													//and not the current clock cycle as these 2 may differ sometimes!
 			BankState bankState = bankStates[rank][bank];
 			
 			//FSM for commands with implicit state change
@@ -177,12 +166,12 @@ public class MainMemoryDRAMController extends MainMemoryController{
 			AddressCarryingEvent event = (AddressCarryingEvent) e;
 			
 			//maintain number of transactions waiting to be serviced
-			numTransactions++;
-//			System.out.println("Num of Transactions here are increased"+numTransactions);		
-//			System.out.println(event.getRequestingElement()+"is and "+event.getActualRequestingElement());
+			//numTransactions++;
+			//System.out.println("Num of Transactions here are increased"+numTransactions);		
+			//System.out.println(event.getRequestingElement()+"is and "+event.getActualRequestingElement());
 			MainMemoryBusPacket b = AddressMapping(event.getAddress(),event.getRequestingElement()); 
 			b.setBusPacketType(requestTypeToBusPacketType(event.getRequestType()));
-	//		System.out.println(event.getRequestType()+"       "+b.getBusPacketType());
+			//System.out.println(event.getRequestType()+"       "+b.getBusPacketType());
 			//for TIMING
 			//create k6 style trace file
 			b.timeCreated = GlobalClock.getCurrentTime();
@@ -196,92 +185,59 @@ public class MainMemoryDRAMController extends MainMemoryController{
 		else if (e.getRequestType() == RequestType.Rank_Response)
 		{
 			
-//			System.out.println("Received rank response! Sending event");	
+			//System.out.println("Received rank response! Sending event");	
 			
 			MainMemoryBusPacket b = ((RamBusAddressCarryingEvent) e).getBusPacket();
-			totalTransactions++;
-//			System.out.println("Rank here is "+b.rank+"Bank here is"+b.bank);
+			numAccesses++;
+			//System.out.println("Rank here is "+b.rank+"Bank here is"+b.bank);
 			totalReadTransactions[b.rank][b.bank]++;
 			totalTime += ( GlobalClock.getCurrentTime() - b.timeCreated);
 
 			AddressCarryingEvent event = new AddressCarryingEvent(eventQ, 0,
 					this, this.parentCache,	RequestType.Mem_Response,
-					((AddressCarryingEvent)e).getAddress());	
-//			System.out.println("Requesting Element is"+event.getRequestingElement()+"tpc Id is"+event.tpcId+"sm id is"+event.smId);
+					((AddressCarryingEvent)e).getAddress());
+			//System.out.println("Requesting Element is"+event.getRequestingElement()+"tpc Id is"+event.tpcId+"sm id is"+event.smId);
 			getComInterface().sendMessage(event);
 			
 		}
 	}
 	
-	
 	public void enqueueToCommandQ()
 	{
-//		System.out.println("In enquequeToCommandQ of DRAM");
-//		try {
-//			outputFileWriter.write("In enquequeToCommandQ of DRAM");
-//		} catch (IOException e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		}
-		MainMemoryBusPacket b;	
-		for(int i=0; i < pendingTransQueue.size(); i++)
-		{	
-//			System.out.println("Size of Pending Transaction Queue  "+pendingTransQueue.size());
-			b = pendingTransQueue.get(i);
-//			System.out.println(this.channel);
-			if(b!=null)
-			{
-//				System.out.println("Before Command Queue rank is"+b.rank);
-			if(commandQueue.hasRoomFor(2,b.rank, b.bank))
-			{
-				numTransactions--;			
-//				System.out.println(numTransactions+ "     number of trans");
-				//the transaction is no longer waiting in the controller
-				//pendingTransQueue.remove(0);
-				//create new ACTIVATE bus packet with the address we just decoded 
-				
-				MainMemoryBusPacket ACTcommand = b.Clone();							//check cloning is ok
-				ACTcommand.setBusPacketType(BusPacketType.ACTIVATE);
-				//create read or write command and enqueue it
-				MainMemoryBusPacket RWcommand = b.Clone();
-//			    RWcommand.setBusPacketType(requestTypeToBusPacketType(event.getRequestType()));			
-//				System.out.println("Enqueuing commands for address " + event.getAddress());	at dram.MainMemoryDRAMController.enqueueToCommandQ(MainMemoryDRAMController.java:215)Function Called byiCache : 0the request is Cache_Read
-
-//				System.out.println("ACTcommand busPacketType "+ACTcommand.busPacketType);
-//				System.out.println("RWcommand busPacketType "+RWcommand.busPacketType);
-//				
-				commandQueue.enqueue(ACTcommand);
-				commandQueue.enqueue(RWcommand);
-				
-				//Main.debugPrinter.print("Enqueued ACT command bus packet to queue as follows:");
-				ACTcommand.printPacketToFile();
-				//Main.debugPrinter.print("Enqueued RW command bus packet to queue as follows:");
-				RWcommand.printPacketToFile();
-					
-				//if enqueued, remove the pending packet
-				if (pendingTransQueue.size()>0)
-				{pendingTransQueue.remove(i);
-//				System.out.println("element removed");
+		try {
+			MainMemoryBusPacket b;
+			int i = 0;
+			while (pendingTransQueue.size() > 0) {
+				b = pendingTransQueue.get(i);
+				if (b != null) {
+					if(commandQueue.hasRoomFor(2, b.rank, b.bank)) {
+						MainMemoryBusPacket ACTcommand = b.Clone();
+						MainMemoryBusPacket RWcommand = b.Clone();
+						ACTcommand.setBusPacketType(BusPacketType.ACTIVATE);
+						commandQueue.enqueue(ACTcommand);
+						commandQueue.enqueue(RWcommand);
+						pendingTransQueue.remove(i);
+					}
+					else {
+						i++;
+						if (i == pendingTransQueue.size())
+							break;
+					}
 				}
-				else
-					{System.out.println(pendingTransQueue.size()+"printing i also "+i);
-
-				break;}               //just enqueue the first one !! not all pending, break when first is enqueued
-
-			}}
-			else 
-				{ pendingTransQueue.remove(i);
+				else {
+					pendingTransQueue.remove(i);
+				}
 			}
-		}	
-					
+		} catch (Exception e) {
+			
+		}
 	}
+	
 	public void oneCycleOperation(){
 		long currentTime = GlobalClock.getCurrentTime();
-//		System.out.println("The time is "+GlobalClock.getCurrentTime()+"as recieved by the dram \n");
-//		System.out.flush();
+		SP core0 = ArchitecturalComponent.getCores()[Main.t0_x][Main.t0_y][Main.t0_z];	
+		//using core 0 queue similar to as in cache
 
-		SM core0 = ArchitecturalComponent.getCores()[0][0];				//using core 0 queue similar to as in cache
-//		System.out.println("In one cycle operation DRAM");
 		if (refreshCount[refreshRank]==0)
 		{
 			commandQueue.needRefresh(refreshRank);
@@ -296,34 +252,29 @@ public class MainMemoryDRAMController extends MainMemoryController{
 		
 		MainMemoryBusPacket b = null;
 		b = commandQueue.pop(currentTime);
-//		if(b==null){
-//			System.out.println("dram commandQueue is null --- Nothing Happening");
-//		try {
-//			outputFileWriter.write("dram commandQueue is null --- Nothing Happening");
-//		} catch (IOException e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		}}
+		
+		/*if (b == null)
+			System.out.println("---> NULL");
+		else {
+			BusPacketType x = b.getBusPacketType();
+			System.out.println("---> "+x);
+		}*/
+		
 		if(b!=null)
 		{
-//			System.out.println(b.rank+" in one cycle operation "+b.busPacketType);
 			int rank = b.rank;
 			int bank = b.bank;
-		//	System.out.println(b.busPacketType); System.out.println("HOORAY");
 			
 			if (b.busPacketType == BusPacketType.WRITE || b.busPacketType == BusPacketType.WRITE_P)
 			{
 				//if write, schedule the data packet
-				
 				MainMemoryBusPacket dataPacketToSend = b.Clone();
 				dataPacketToSend.setBusPacketType(BusPacketType.DATA);
 				
 				//Main.debugPrinter.print("\n\n Received a write, scheduling event for data packet for address " + dataPacketToSend.physicalAddress + "\n\n");
 				
-				RamBusAddressCarryingEvent event = new RamBusAddressCarryingEvent(	core0.getEventQueue() , (currentTime + mainMemoryConfig.tWL), this,
-						ranks[rank], RequestType.Main_Mem_Access, dataPacketToSend.physicalAddress, dataPacketToSend);
+				RamBusAddressCarryingEvent event = new RamBusAddressCarryingEvent(core0.getEventQueue(), (currentTime + mainMemoryConfig.tWL), this, ranks[rank], RequestType.Main_Mem_Access, dataPacketToSend.physicalAddress, dataPacketToSend);
 				event.getEventQ().addEvent(event);
-			//	System.out.println("Write Transaction");
 				totalWriteTransactions[rank][bank]++;
 			}
 			
@@ -392,7 +343,6 @@ public class MainMemoryDRAMController extends MainMemoryController{
 			case WRITE_P:
 			case WRITE:
 				if (b.busPacketType == BusPacketType.WRITE_P) {
-//				{	System.out.println("in write");
 					bankStates[rank][bank].nextActivate = Math.max(currentTime + mainMemoryConfig.WriteAutopreDelay,
 																	bankStates[rank][bank].nextActivate);
 					bankStates[rank][bank].lastCommand = BusPacketType.WRITE_P;
@@ -400,10 +350,8 @@ public class MainMemoryDRAMController extends MainMemoryController{
 					//create and send event state update event
 					//sending to core 0 event queue currently
 					//keeping requesting and processing element same
-					StateUpdateEvent StUpdtEvent = new StateUpdateEvent(core0.getEventQueue(), (currentTime+mainMemoryConfig.WriteToPreDelay), this,
-																		this, RequestType.Mem_Cntrlr_State_Update, rank, bank);
+					StateUpdateEvent StUpdtEvent = new StateUpdateEvent(core0.getEventQueue(), (currentTime+mainMemoryConfig.WriteToPreDelay), this, this, RequestType.Mem_Cntrlr_State_Update, rank, bank);
 					StUpdtEvent.getEventQ().addEvent(StUpdtEvent);
-					
 					
 				}
 				else if (b.busPacketType == BusPacketType.WRITE)
@@ -532,24 +480,11 @@ public class MainMemoryDRAMController extends MainMemoryController{
 	
 	}
 	
-	//getter and setter for number of CPU cycles to next RAM clock posedge
-	/*public int getNextTick()
-	{
-		return nextTick;
-	}*/
-
-	
-	/*public void setNextTick(int nextTick)
-	{
-		this.nextTick = nextTick;
-	}*/
-
-
 	public double getAverageLatency()
 	{
 //		return 0;
-		if(totalTransactions!=0)
-			return totalTime/totalTransactions;
+		if(numAccesses!=0)
+			return totalTime/numAccesses;
 		else
 			return 0;
 		
@@ -702,7 +637,7 @@ public class MainMemoryDRAMController extends MainMemoryController{
 		Error.showErrorAndExit("Invalid Row Buffer Policy!");
 		}
 
-		long numAccesses;
+		//long numAccesses;
 		//if num ranks = 1, decoded rank will always be "0"
 
 
@@ -716,6 +651,30 @@ public class MainMemoryDRAMController extends MainMemoryController{
 		return (int) (Math.log(a)/Math.log(2));
 	}
 	
+	public void clear() {
+		
+		this.refreshRank=0;
+		this.ranks = new Rank[mainMemoryConfig.numRanks];
+		
+		for(int i=0; i < mainMemoryConfig.numRanks;i++)
+		{
+			for(int j=0; j < mainMemoryConfig.numBanks; j++)
+			{
+				this.bankStates[i][j] = new BankState();
+			}
+			this.ranks[i] = new Rank(mainMemoryConfig,i,this,bankStates[i]);
+		}
+		
+		this.pendingTransQueue=new ArrayList<MainMemoryBusPacket>();
+		
+		this.commandQueue = new CommandQueue(mainMemoryConfig,bankStates);
+		
+		this.refreshCount=new int[mainMemoryConfig.numRanks];
+		
+		for(int i=0;i<mainMemoryConfig.numRanks;i++){
+			this.refreshCount[i]=(int)((mainMemoryConfig.RefreshPeriod/mainMemoryConfig.tCK)/mainMemoryConfig.numRanks)*(i+1);
+		}
+	}
 	
 	public BusPacketType requestTypeToBusPacketType(RequestType requestType)
 	{
@@ -762,7 +721,6 @@ public class MainMemoryDRAMController extends MainMemoryController{
 		this.channel = n;
 	}
 	
-
 	public int getChannelNumber()
 	{
 		return this.channel;

@@ -53,11 +53,15 @@ then
 
 	echo "Enter the path of output file (with name): "
 	read outputFile
-	#configPath=gputejas/src/simulator/config/config.xml
-	#outputFile=output.txt
-	threadNum=`grep -o '<MaxNumJavaThreads>.*</MaxNumJavaThreads>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
 
-	kernels=`ls $threadNum/hashfile_* | wc -l`
+	#configPath=gputejas/src/simulator/config/config.xml
+
+	NoOfTPC=`grep -o '<NoOfTPC>.*</NoOfTPC>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
+	NoOfSM=`grep -o '<NoOfSM>.*</NoOfSM>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
+	NoOfSP=`grep -o '<NoOfSP>.*</NoOfSP>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`	
+	cores=$((NoOfTPC * NoOfSM * NoOfSP))
+
+	kernels=`ls $cores/hashfile_* | wc -l`
 
 	echo "java -jar jars/GPUTejas.jar $configPath $outputFile . $kernels"
 	
@@ -90,60 +94,63 @@ then
 	echo "-----------------Cleaning the temporary files-----------"
 	rm *.txt *.o tmp tracegen 2>/dev/null
 
-	echo "Benchmark path containing .o files : $2"
+	echo "Enter the benchmark path containing .o files: "
 	read bench_path
 	echo $bench_path
 	
 	echo "Enter the path of config file: "
 	read configPath
 	#configPath=gputejas/src/simulator/config/config.xml
-	threadNum=`grep -o '<MaxNumJavaThreads>.*</MaxNumJavaThreads>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
+	
+	NoOfTPC=`grep -o '<NoOfTPC>.*</NoOfTPC>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
+	NoOfSM=`grep -o '<NoOfSM>.*</NoOfSM>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
+	NoOfSP=`grep -o '<NoOfSP>.*</NoOfSP>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
+	
+	cores=$((NoOfTPC * NoOfSM * NoOfSP))
 
-	#--- removing the $threadNum directory if present
-	rm -rf $threadNum 2>/dev/null 
+	#--- removing the $cores directory if present
+	rm -rf $cores 2>/dev/null 
 	
    	echo "Please enter the arguments to run the benchmark"
    	read args	
 	echo $args
-	# args=512 2 2 /home/khushal/Downloads/rodinia_2.1/data/hotspot/temp_512 /home/khushal/Downloads/rodinia_2.1/data/hotspot/power_512 output.out
 	
 	#--- Compiling Tracegen.cpp ---
-
 	echo ""
 	echo "----------Compiling Tracegen.cpp----------"
 	echo "g++ -std=c++0x Tracegen.cpp -c -I ."
 	g++-4.8 -std=c++0x Tracegen.cpp -c -I .
 
-	#bench_path=/home/khushal/Downloads/rodinia_2.1/cuda/hotspot
 	#--- generating tracegen executable ---
 	echo ""
 	echo "----------Generating tracegen executable----------"
-	echo "g++ -o tracegen $2/*.o Tracegen.o -locelot -ltinfo"
+	echo "g++ -o tracegen $bench_path/*.o Tracegen.o -locelot -ltinfo"
 	#g++-4.8 -o tracegen $bench_path/*.o Tracegen.o -locelot -ltinfo -L/usr/lib/x86_64-linux-gnu/ -lcudart
-	g++-4.4 -o tracegen $bench_path/*.o Tracegen.o -locelot -ltinfo 
+	g++-4.8 -o tracegen $bench_path/*.o Tracegen.o -locelot -ltinfo 
 	#--- generating traces ---
 	echo ""
 	echo "----------Generating traces----------"
-	echo "./tracegen $args $threadNum"
-	./tracegen $args $threadNum
+	echo "./tracegen $args $cores"
+	./tracegen $args $cores
 
 	
 	#--- checking number of kernels ---
 	kernels=`grep "KERNEL START" 0.txt | wc -l`
+	echo $kernels
 
 	#--- creating a new folder & moving the text files	
-	echo "mkdir $threadNum"
-	mkdir $threadNum
-
-	echo "mv *.txt $threadNum"
-	mv *.txt $threadNum
+	echo "mkdir $cores"
+	mkdir $cores
+	
+	echo "mv *.txt $cores"
+	mv *.txt $cores
 
 	#--- trace simplifier ---
 	echo ""
 	echo "----------Simplifying the traces----------"
-	echo "java -jar gputejas/TraceSimplifier.jar $configPath tmp . $kernels"
+	echo "java -jar gputejas/jars/TraceSimplifier.jar $configPath tmp . $kernels"
 
-	if !(java -jar gputejas/Tracesimplifier.jar $configPath tmp . $kernels) then
+	if !(java -jar gputejas/jars/Tracesimplifier.jar $configPath tmp . $kernels) then
 		echo "Problem with simplifying the traces, please try again, exiting..."
 		echo ""
 		exit 1
@@ -153,6 +160,7 @@ then
 	echo ""
     	echo "--- Generated the traces, please run the benchmark using './setup_gputejas.sh run' ---"
         exit 0
+
 fi
 
 
@@ -188,7 +196,7 @@ then
    #      	exit 1
    # 	fi
    
-       
+: '       
 	#--- update repository  ---
 	echo ""
 	echo "----------Let us first update the repository----------"
@@ -204,6 +212,7 @@ then
 
 	echo "sudo apt-get update"
 	sudo apt-get update
+
 
 
 	#------ Installing required softwares------
@@ -225,6 +234,7 @@ then
 	fi
 
 
+
 	# #--- install nvidia-cuda-toolkit  ---
 	# echo ""
 	# echo "----------Installing nvidia-cuda-toolkit----------"
@@ -236,12 +246,15 @@ then
 	# 	exit 1
 	# fi
 	sudo apt-get remove nvidia-cuda-toolkit
-	sudo rm /usr/bin/gcc
-	sudo ln -s gcc-4.4 gcc
-	sudo cp -r cuda-toolkit/bin/ /usr/bin/ 
+	sudo apt-get autoremove
+'
+	sudo ln -sf /usr/bin/gcc-4.4 /usr/bin/gcc
+	sudo cp -r cuda-toolkit/bin/. /usr/bin/ 
 	sudo cp -r cuda-toolkit/include/crt /usr/include/
 	sudo cp -r cuda-toolkit/include/*.h /usr/include/
 	sudo cp -r nvidia-cuda-toolkit/ /usr/lib/
+
+: '
 	#--- install ant  ---
 	echo ""
 	echo "----------Installing ant----------"
@@ -280,7 +293,7 @@ then
 			exit 1
 		fi
 	fi
-
+'
 
 	#--- Copying .so files to the respective directories
 	if [ $archi = 32 ] 
@@ -340,12 +353,12 @@ then
 
 		sudo cp so_files_64bit/libocelot.so '/usr/lib/libocelot.so'
 		sudo rm /usr/lib/x86_64-linux-gnu/libtinfo.so 2>/dev/null
-		sudo cp so_files_64bit/libtinfo.so '/usr/lib/x86_64-linux-gnu/libtinfo.so'
-		sudo cp so_files_64bit/libboost_thread.so.1.54.0 '/usr/lib/x86_64-linux-gnu/libboost_thread.so.1.54.0'
-		sudo cp so_files_64bit/libboost_system.so.1.54.0 '/usr/lib/x86_64-linux-gnu/libboost_system.so.1.54.0'
-		sudo cp so_files_64bit/libz.so.1.2.8 '/lib/x86_64-linux-gnu/libz.so'
+		sudo cp so_files_64bit/libtinfo.so '/usr/lib/libtinfo.so'
+		sudo cp so_files_64bit/libboost_thread.so.1.54.0 '/usr/lib/libboost_thread.so.1.54.0'
+		sudo cp so_files_64bit/libboost_system.so.1.54.0 '/usr/lib/libboost_system.so.1.54.0'
+		sudo cp so_files_64bit/libz.so.1.2.8 '/lib/libz.so'
 		sudo rm /usr/lib/x86_64-linux-gnu/libGLEW.so.1.10 2>/dev/null
-		sudo cp so_files_64bit/libGLEW.so.1.10 '/usr/lib/x86_64-linux-gnu/libGLEW.so.1.10'
+		sudo cp so_files_64bit/libGLEW.so.1.10 '/usr/lib/libGLEW.so.1.10'
 	fi
 
 

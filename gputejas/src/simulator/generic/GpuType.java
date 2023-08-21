@@ -27,6 +27,6 @@ public enum GpuType {
 	Fermi,
 	Maxwell,
 	Kepler,
-	Pascal
-
+	Pascal,
+	Ampere
 }

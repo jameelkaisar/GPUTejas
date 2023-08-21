@@ -36,9 +36,9 @@ public class DestinationBankEvent extends AddressCarryingEvent
 	public DestinationBankEvent(EventQueue eventQ, long eventTime,
 			SimulationElement requestingElement,
 			SimulationElement processingElement,
-			RequestType requestType, long address,int tpcId, int smId) {
+			RequestType requestType, long address,int tpcId, int smId, int spId) {
 		super(eventQ, eventTime, requestingElement, 
-			  processingElement, requestType,address,tpcId, smId);
+			  processingElement, requestType,address,tpcId, smId, spId);
 		sourceBankId = null;
 		destinationBankId = null;
 		oldSourceBankId = null;

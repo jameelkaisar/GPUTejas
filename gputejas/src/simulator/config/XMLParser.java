@@ -92,6 +92,7 @@ public class XMLParser
 			Element cacheNode = (Element)nodeLst.item(i);
 			CacheConfig config = createCacheConfig(cacheNode);
 			config.cacheName = cacheNode.getAttribute("type");
+			config.levelFromTop = CacheType.valueOf(config.cacheName);
 			SystemConfig.sharedCacheConfigs.add(config);
 		}
 	}
@@ -132,21 +133,21 @@ public class XMLParser
 		
 		NodeList nodeLsts = doc.getElementsByTagName("OperationEnergy");
 		Node EnergyNode = nodeLsts.item(0);
-		Element EnergyElmnt = (Element) latencyNode;
-		OperationEnergyConfig.loadEnergy= Integer.parseInt(getImmediateString("load", EnergyElmnt));
-		OperationEnergyConfig.storeEnergy= Integer.parseInt(getImmediateString("store", EnergyElmnt));
-		OperationEnergyConfig.addressEnergy= Integer.parseInt(getImmediateString("address", EnergyElmnt));
-		OperationEnergyConfig.intALUEnergy= Integer.parseInt(getImmediateString("intALU", EnergyElmnt));
-		OperationEnergyConfig.intMULEnergy= Integer.parseInt(getImmediateString("intMUL", EnergyElmnt));
-		OperationEnergyConfig.intDIVEnergy= Integer.parseInt(getImmediateString("intDIV", EnergyElmnt));
-		OperationEnergyConfig.floatALUEnergy= Integer.parseInt(getImmediateString("floatALU", EnergyElmnt));
-		OperationEnergyConfig.floatMULEnergy= Integer.parseInt(getImmediateString("floatMUL", EnergyElmnt));
-		OperationEnergyConfig.floatDIVEnergy= Integer.parseInt(getImmediateString("floatDIV", EnergyElmnt));
-		OperationEnergyConfig.predicateEnergy= Integer.parseInt(getImmediateString("predicate", EnergyElmnt));
-		OperationEnergyConfig.branchEnergy= Integer.parseInt(getImmediateString("branch", EnergyElmnt));
-		OperationEnergyConfig.callEnergy= Integer.parseInt(getImmediateString("call", EnergyElmnt));
-		OperationEnergyConfig.returnEnergy= Integer.parseInt(getImmediateString("return", EnergyElmnt));
-		OperationEnergyConfig.exitEnergy= Integer.parseInt(getImmediateString("exit", EnergyElmnt));
+		Element EnergyElmnt = (Element) EnergyNode;
+		OperationEnergyConfig.loadEnergy= Double.parseDouble(getImmediateString("load", EnergyElmnt));
+		OperationEnergyConfig.storeEnergy= Double.parseDouble(getImmediateString("store", EnergyElmnt));
+		OperationEnergyConfig.addressEnergy= Double.parseDouble(getImmediateString("address", EnergyElmnt));
+		OperationEnergyConfig.intALUEnergy= Double.parseDouble(getImmediateString("intALU", EnergyElmnt));
+		OperationEnergyConfig.intMULEnergy= Double.parseDouble(getImmediateString("intMUL", EnergyElmnt));
+		OperationEnergyConfig.intDIVEnergy= Double.parseDouble(getImmediateString("intDIV", EnergyElmnt));
+		OperationEnergyConfig.floatALUEnergy= Double.parseDouble(getImmediateString("floatALU", EnergyElmnt));
+		OperationEnergyConfig.floatMULEnergy= Double.parseDouble(getImmediateString("floatMUL", EnergyElmnt));
+		OperationEnergyConfig.floatDIVEnergy= Double.parseDouble(getImmediateString("floatDIV", EnergyElmnt));
+		OperationEnergyConfig.predicateEnergy= Double.parseDouble(getImmediateString("predicate", EnergyElmnt));
+		OperationEnergyConfig.branchEnergy= Double.parseDouble(getImmediateString("branch", EnergyElmnt));
+		OperationEnergyConfig.callEnergy= Double.parseDouble(getImmediateString("call", EnergyElmnt));
+		OperationEnergyConfig.returnEnergy= Double.parseDouble(getImmediateString("return", EnergyElmnt));
+		OperationEnergyConfig.exitEnergy= Double.parseDouble(getImmediateString("exit", EnergyElmnt));
 				
 	}
 
@@ -157,10 +158,7 @@ public class XMLParser
 		Element simulationElmnt = (Element) simulationNode;
 		SimulationConfig.MaxNumJavaThreads= Integer.parseInt(getImmediateString("MaxNumJavaThreads", simulationElmnt));
 		SimulationConfig.MaxNumBlocksPerJavaThread=Integer.parseInt(getImmediateString("MaxNumBlocksPerJavaThread", simulationElmnt));
-		if(getImmediateString("GPUType", simulationElmnt).compareTo("Tesla") == 0)			
-		{
-			SimulationConfig.GPUType = GpuType.Tesla; 
-		}
+		SimulationConfig.GPUType = GpuType.valueOf(getImmediateString("GPUType", simulationElmnt));
 		SimulationConfig.ThreadsPerCTA=Integer.parseInt(getImmediateString("ThreadsPerCTA", simulationElmnt));	
 	}
 	
@@ -431,28 +429,31 @@ public class XMLParser
 	
 	private static void setSMcaches(SmConfig sm, Element smElmnt){
 	
-		CacheConfig iCacheConfigEntry = new CacheConfig();
 		CacheConfig constantCacheConfigEntry = new CacheConfig();
 		CacheConfig sharedConfigEntry = new CacheConfig();
+		String cacheType;
+		Element typeElmnt;
 		
-		
-		NodeList iCacheList = smElmnt.getElementsByTagName("iCache");
+		/* NodeList iCacheList = smElmnt.getElementsByTagName("iCache");
 		Element iCacheElmnt = (Element) iCacheList.item(0);
 		String cacheType = iCacheElmnt.getAttribute("type");
 		Element typeElmnt = searchLibraryForItem(cacheType);
 		sm.iCache.levelFromTop = CacheType.iCache;
 		setCacheProperties(typeElmnt, sm.iCache);
 		sm.iCache.nextLevel = iCacheElmnt.getAttribute("nextLevel");
-		SystemConfig.declaredCaches.put("iCache", iCacheConfigEntry);
+		SystemConfig.declaredCaches.put("iCache", iCacheConfigEntry);*/
 		
-		NodeList dCacheList = smElmnt.getElementsByTagName("iCache");
-		Element dCacheElmnt = (Element) iCacheList.item(0);
-		cacheType = iCacheElmnt.getAttribute("type");
-		typeElmnt = searchLibraryForItem(cacheType);
-		sm.dCache.levelFromTop = CacheType.dCache;
-		setCacheProperties(typeElmnt, sm.dCache);
-		sm.dCache.nextLevel = iCacheElmnt.getAttribute("nextLevel");
-		SystemConfig.declaredCaches.put("iCache", iCacheConfigEntry);
+		if (SimulationConfig.GPUType == GpuType.Ampere) {
+			CacheConfig dCacheConfigEntry = new CacheConfig();
+			NodeList dCacheList = smElmnt.getElementsByTagName("L1Cache");
+			Element dCacheElmnt = (Element) dCacheList.item(0);
+			cacheType = dCacheElmnt.getAttribute("type");
+			typeElmnt = searchLibraryForItem(cacheType);
+			sm.L1Cache.levelFromTop = CacheType.dCache;
+			setCacheProperties(typeElmnt, sm.L1Cache);
+			sm.L1Cache.nextLevel = dCacheElmnt.getAttribute("nextLevel");
+			SystemConfig.declaredCaches.put("dCache", dCacheConfigEntry);
+		}
 		
 		//Code for constant cache configurations for each sm
 		NodeList constantCacheList = smElmnt.getElementsByTagName("constantCache");
@@ -463,7 +464,7 @@ public class XMLParser
 		setCacheProperties(typeElmnt, sm.constantCache);
 		sm.constantCache.nextLevel = constantCacheElmnt.getAttribute("nextLevel");
 		SystemConfig.declaredCaches.put("constantCache", constantCacheConfigEntry);		
-				
+		
 		//Code for shared cache configurations for each sm
 		NodeList sharedCacheList = smElmnt.getElementsByTagName("sharedCache");
 		Element sharedCacheElmnt = (Element) sharedCacheList.item(0);
@@ -472,14 +473,36 @@ public class XMLParser
 		sm.sharedCache.levelFromTop = CacheType.sharedCache;
 		setCacheProperties(typeElmnt, sm.sharedCache);
 		sm.sharedCache.nextLevel = sharedCacheElmnt.getAttribute("nextLevel");
-		SystemConfig.declaredCaches.put("sharedCache", sharedConfigEntry);		
+		SystemConfig.declaredCaches.put("sharedCache", sharedConfigEntry);
 		
 	}
 
 	@SuppressWarnings("static-access")
 	private static void setSpProperties(SpConfig sp, Element spElmnt) {
-		// TODO Auto-generated method stub
+		
 		sp.NoOfThreadsSupported = Integer.parseInt(getImmediateString("NoOfThreadsSupported", spElmnt));
+
+		CacheConfig iCacheConfigEntry = new CacheConfig();
+		NodeList iCacheList = spElmnt.getElementsByTagName("iCache");
+		Element iCacheElmnt = (Element) iCacheList.item(0);
+		String cacheType = iCacheElmnt.getAttribute("type");
+		Element typeElmnt = searchLibraryForItem(cacheType);
+		sp.iCache.levelFromTop = CacheType.iCache;
+		setCacheProperties(typeElmnt, sp.iCache);
+		sp.iCache.nextLevel = iCacheElmnt.getAttribute("nextLevel");
+		SystemConfig.declaredCaches.put("iCache", iCacheConfigEntry);
+		
+		if (SimulationConfig.GPUType != GpuType.Ampere) {
+			CacheConfig dCacheConfigEntry = new CacheConfig();
+			NodeList dCacheList = spElmnt.getElementsByTagName("dCache");
+			Element dCacheElmnt = (Element) dCacheList.item(0);
+			cacheType = dCacheElmnt.getAttribute("type");
+			typeElmnt = searchLibraryForItem(cacheType);
+			sp.dCache.levelFromTop = CacheType.dCache;
+			setCacheProperties(typeElmnt, sp.dCache);
+			sp.dCache.nextLevel = dCacheElmnt.getAttribute("nextLevel");
+			SystemConfig.declaredCaches.put("dCache", dCacheConfigEntry);
+		}
 	}
 
 	private static String getImmediateString(String tagName, Element parent) // Get the immediate string value of a particular tag name under a particular parent tag

@@ -80,7 +80,6 @@ public class Port
 	{
 		if(this.portType == PortType.Unlimited)
 		{
-//			event.addEventTime(ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime());
 			event.addEventTime(GlobalClock.getCurrentTime());
 			event.getEventQ().addEvent(event);
 			return;

@@ -8,7 +8,7 @@ import dram.MainMemoryBusPacket.BusPacketType;
 import generic.Event;
 import generic.EventQueue;
 import generic.GlobalClock;
-import generic.LocalClockperSm;
+import generic.LocalClockperSp;
 import generic.RequestType;
 import generic.SimulationElement;
 
@@ -40,17 +40,11 @@ public class Rank extends SimulationElement{
 	//parent memory controller
 	MainMemoryDRAMController parentMemContrlr;
 
-	Rank(MainMemoryConfig mainMemoryParameters, int id, MainMemoryDRAMController parentMemContrlr){
+	Rank(MainMemoryConfig mainMemoryParameters, int id, MainMemoryDRAMController parentMemContrlr, BankState bankStates[]){
 		super(mainMemoryParameters.getRankPortType(), mainMemoryParameters.getRankNumPorts(), mainMemoryParameters.getRankOccupancy(), mainMemoryParameters.getRankLatency(), mainMemoryParameters.getRankOperatingFrequency());
 		//System.out.println("Constructing a rank!");
 		refreshWaiting=false;
-		bankStates = new BankState[mainMemoryParameters.numBanks];
-		
-		for(int i=0; i < mainMemoryParameters.numBanks; i++)
-		{
-			bankStates[i] = new BankState();
-		}
-		
+		this.bankStates = bankStates;
 		this.mainMemoryConfig = mainMemoryParameters;
 		this.id = id;
 		this.parentMemContrlr = parentMemContrlr;
@@ -288,7 +282,6 @@ public class Rank extends SimulationElement{
 			if(currentTime >= busFreeTime){
 				parentMemContrlr.setBusFreeTime(currentTime+mainMemoryConfig.tBL/2);
 				event.addEventTime(mainMemoryConfig.tBL/2);
-			
 				//change the requesting and the processing elements
 				event.setRequestType(RequestType.Rank_Response);
 				SimulationElement element=event.getProcessingElement();

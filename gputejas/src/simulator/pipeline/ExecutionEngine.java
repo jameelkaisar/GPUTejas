@@ -24,21 +24,21 @@ import java.io.FileWriter;
 import java.io.IOException;
 
 import config.EnergyConfig;
-import generic.SM;
+import generic.SP;
 import generic.GenericCircularQueue;
 import generic.Instruction;
-import memorysystem.SMMemorySystem;
+import memorysystem.SPMemorySystem;
 
 public abstract class ExecutionEngine {
 	
-	protected SM containingCore;
+	protected SP containingCore;
 	protected boolean executionComplete;
-	protected SMMemorySystem coreMemorySystem;
+	protected SPMemorySystem coreMemorySystem;
 
 	private long instructionMemStall;
 	
 	
-	public ExecutionEngine(SM containingCore)
+	public ExecutionEngine(SP containingCore)
 	{
 		this.containingCore = containingCore;
 		executionComplete = false;
@@ -57,11 +57,11 @@ public abstract class ExecutionEngine {
 		return executionComplete;
 	}
 
-	public void setCoreMemorySystem(SMMemorySystem coreMemorySystem) {
+	public void setCoreMemorySystem(SPMemorySystem coreMemorySystem) {
 		this.coreMemorySystem = coreMemorySystem;
 	}
 
-	public SMMemorySystem getCoreMemorySystem() {
+	public SPMemorySystem getCoreMemorySystem() {
 		return coreMemorySystem;
 	}
 
@@ -74,7 +74,7 @@ public abstract class ExecutionEngine {
 		return instructionMemStall;
 	}
 
-	public SM getContainingCore() {
+	public SP getContainingCore() {
 		return containingCore;
 	}
 	public abstract EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException;

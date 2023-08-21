@@ -28,30 +28,29 @@ import generic.EventQueue;
 import generic.GenericCircularQueue;
 import generic.GlobalClock;
 import generic.Instruction;
-import generic.SM;
+import generic.SP;
 
 public class GPUpipeline {
 
-	SM sm;
+	SP sp;
 	public GPUExecutionEngine containingExecutionEngine;
 	EventQueue eventQ;
 	int coreStepSize;
+	public int bid;
 	
-	public GPUpipeline(SM sm, EventQueue eventQueue) {
-		this.sm= sm;
-		containingExecutionEngine = (GPUExecutionEngine)sm.getExecEngine();
+	public GPUpipeline(SP sp, EventQueue eventQueue) {
+		this.sp = sp;
+		containingExecutionEngine = (GPUExecutionEngine)sp.getExecEngine();
 		this.eventQ = eventQueue;
-		this.coreStepSize = sm.getStepSize();	//Not Necessary. Global clock hasn't been initialized yet
+		this.coreStepSize = sp.getStepSize();	//Not Necessary. Global clock hasn't been initialized yet
 												//So, step sizes of the cores hasn't been set.
 												//It will be set when the step sizes of the cores will be set
-		}
+	}
 
-	static long update = 0;	
+	static long update = 0;
 	public void oneCycleOperation() {
+		
 //		long start = System.currentTimeMillis();
-	
-		long start = System.currentTimeMillis();
-	    
 		
 		long currentTime = GlobalClock.getCurrentTime();
 		
@@ -63,7 +62,6 @@ public class GPUpipeline {
 		
 		containingExecutionEngine.WarpTable();
 		containingExecutionEngine.writeback();
-//		System.out.println("the size of the WarpTable is"+containingExecutionEngine.WarpTable.size()+"for sm"+sm.getSM_number());
 		if(containingExecutionEngine.WarpTable.size()>0 ){
 			execute();
 		}
@@ -72,9 +70,9 @@ public class GPUpipeline {
 		{readoperands();} 		
 
 		if(containingExecutionEngine.getScheduleUnit().completeWarpPipeline.size()>0){
-//			System.out.println(containingExecutionEngine.getScheduleUnit().completeWarpPipeline.size()+"is the size of Scheduled pipeline here");
 			schedule();
 		}
+		
 //		long end = System.currentTimeMillis();
 //		main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].pipe_time += (end - start);
 //		if(main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_flag)
@@ -82,13 +80,10 @@ public class GPUpipeline {
 //			main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_time += (end - start);
 //		}
 //		
-		
 	}
 	
 	private void drainEvents() {
-		// TODO Auto-generated method stub
 		eventQ.processEvents();
-		
 	}
 
 
@@ -101,7 +96,7 @@ public class GPUpipeline {
 
 	public void readoperands(){
 		// TODO Check this also
-	containingExecutionEngine.getOpndColl().step(this);
+		containingExecutionEngine.getOpndColl().step(this);
 	}
 	
 	public boolean isExecutionComplete() {
@@ -116,7 +111,7 @@ public class GPUpipeline {
 
 	
 	public int getCoreStepSize() {
-		return this.sm.getStepSize();
+		return this.sp.getStepSize();
 	}
 
 	
@@ -124,8 +119,8 @@ public class GPUpipeline {
 	}
 
 	
-	public SM getCore() {
-		return sm;
+	public SP getCore() {
+		return sp;
 	}
 
 	
@@ -154,10 +149,8 @@ public class GPUpipeline {
 	}
 
 	
-	public void setInputToPipeline(
-			GenericCircularQueue<Instruction>[] inputToPipeline) {
+	public void setInputToPipeline(GenericCircularQueue<Instruction>[] inputToPipeline) {
 		this.containingExecutionEngine.setInputToPipeline(inputToPipeline);
-		
 	}
 
 	
@@ -239,5 +232,4 @@ public class GPUpipeline {
 	public void setBlockId(int tidBlock) {
 		this.bid=tidBlock;
 	}
-	public int bid;
 }

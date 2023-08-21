@@ -31,25 +31,26 @@ import generic.EventQueue;
 import generic.Instruction;
 import generic.OperationType;
 import generic.PortType;
-import generic.SM;
+import generic.SP;
 import generic.SimulationElement;
 
 public class ExecuteUnit extends SimulationElement{
-	SM sm;
-	GPUExecutionEngine containingExecutionEngine;
-	
+	SP sp;
+	GPUExecutionEngine containingExecutionEngine;	
 	StageLatch_MII scheduleExecuteLatch;
+	int numAccesses;
 
-	public ExecuteUnit(SM sm, EventQueue eventQueue, GPUExecutionEngine execEngine) {
+	public ExecuteUnit(SP sp, EventQueue eventQueue, GPUExecutionEngine execEngine) {
 		super(PortType.Unlimited, -1, -1, eventQueue, -1, -1);
-		this.sm = sm;
+		this.sp = sp;
 		this.containingExecutionEngine = execEngine;
-		this. scheduleExecuteLatch = execEngine.getScheduleExecuteLatch();
+		this.scheduleExecuteLatch = execEngine.getScheduleExecuteLatch();
+		this.numAccesses = 0;
 	}
 
 	public void performExecute(GPUpipeline inorderPipeline)
 	{
-//		System.out.println(scheduleExecuteLatch.isEmpty()+"execution is empty");
+		numAccesses++;
 		if(scheduleExecuteLatch.isEmpty() == true)
 			return;
 		Instruction ins = scheduleExecuteLatch.peek(0);
@@ -58,8 +59,8 @@ public class ExecuteUnit extends SimulationElement{
 			return;
 		}
 		scheduleExecuteLatch.poll();
-		if(ins.type == OperationType.load_const || ins.type == OperationType.load_shared || 
-				ins.type == OperationType.store_const || ins.type == OperationType.store_shared )
+		if(ins.type == OperationType.load || ins.type == OperationType.load_const || ins.type == OperationType.load_shared || 
+			ins.type == OperationType.store || ins.type == OperationType.store_const || ins.type == OperationType.store_shared )
 		{
 			main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_flag = false;
 		}
@@ -68,8 +69,6 @@ public class ExecuteUnit extends SimulationElement{
 			containingExecutionEngine.setExecutionComplete(true);
 			
 		}
-		
-		
 	}
 
 	@Override
@@ -78,20 +77,20 @@ public class ExecuteUnit extends SimulationElement{
 	}
 	
 	public void processCompletionOfMemRequest(long requestedAddress) {
+		numAccesses++;
 		containingExecutionEngine.pendingLoads--;
 		if(this.scheduleExecuteLatch != null &&  this.scheduleExecuteLatch.instructions[0] != null &&
-				this.scheduleExecuteLatch.instructionCompletesAt[0] > ArchitecturalComponent.getCores()[sm.getTPC_number()][sm.getSM_number()].clock.getCurrentTime())
+				this.scheduleExecuteLatch.instructionCompletesAt[0] > ArchitecturalComponent.getCores()[sp.getTPC_number()][sp.getSM_number()][sp.getSP_number()].clock.getCurrentTime())
 		{
 			if(containingExecutionEngine.pendingLoads <= 0)
 			{
-				this.scheduleExecuteLatch.instructionCompletesAt[0] = ArchitecturalComponent.getCores()[sm.getTPC_number()][sm.getSM_number()].clock.getCurrentTime();
+				this.scheduleExecuteLatch.instructionCompletesAt[0] = ArchitecturalComponent.getCores()[sp.getTPC_number()][sp.getSM_number()][sp.getSP_number()].clock.getCurrentTime();
 			}
 		}
 	}
 	public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException
 	{
-		long numResultsBroadCastBusAccess=0;
-		EnergyConfig power = new EnergyConfig(sm.getResultsBroadcastBusPower(), numResultsBroadCastBusAccess);
+		EnergyConfig power = new EnergyConfig(sp.getResultsBroadcastBusPower(), numAccesses);
 		power.printEnergyStats(outputFileWriter, componentName);
 		return power;
 	}

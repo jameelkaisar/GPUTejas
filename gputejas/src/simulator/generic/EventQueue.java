@@ -28,52 +28,63 @@ import main.ArchitecturalComponent;
 import dram.MainMemoryDRAMController;
 
 import main.ArchitecturalComponent;
+import memorysystem.Cache;
 import memorysystem.MemorySystem;
 
-public class EventQueue 
+public class EventQueue
 {
 	private PriorityBlockingQueue<Event> priorityQueue;
-	int tpcId, smId;
-	public EventQueue(int tpcId, int smId) 
+	int tpcId, smId, spId;
+	public EventQueue(int tpcId, int smId, int spId)
 	{
 		this.tpcId=tpcId;
 		this.smId=smId;
+		this.spId=spId;
 		priorityQueue = new PriorityBlockingQueue<Event>(1, new EventComparator());
 	}
 	
 	public void addEvent(Event event)
 	{
-		if( priorityQueue.add(event) == false) {
+		if(priorityQueue.add(event) == false) {
 			Event newEvent = event.clone();
 			priorityQueue.add(newEvent);
 		}
+		/*System.out.println("---");
+		System.out.println(event.getRequestType());
+		System.out.println(event.getRequestingElement());
+		System.out.println(event.getProcessingElement());*/
 	}
 	
 	public void processEvents()
 	{
-		Event event;
-		long eventTime;
-		long currentClockTime = ArchitecturalComponent.getCores()[tpcId][smId].clock.getCurrentTime();
-		while(!priorityQueue.isEmpty())
-		{
-//			System.out.println("event queue size = " + priorityQueue.size());
-			eventTime = priorityQueue.peek().getEventTime();
-			if (eventTime <= currentClockTime)
+		long currentClockTime = ArchitecturalComponent.getCores()[tpcId][smId][spId].clock.getCurrentTime();
+		try {
+			while(!priorityQueue.isEmpty())
 			{
-			event = priorityQueue.remove();
-//				System.out.println(event.getProcessingElement()+" is req. elem. and "+event.getRequestType());
-				event.getProcessingElement().handleEvent(this, event);
+				long eventTime = priorityQueue.peek().getEventTime();
+				if (eventTime <= currentClockTime)
+				{
+					Event event = priorityQueue.remove();
+					event.getProcessingElement().handleEvent(this, event);
+				}
+				else
+				{
+					break;
+				}
 			}
-			else
-			{
-				break;
-			}
+		} catch (Exception e) {
+
 		}
 	}
 	
 	public boolean isEmpty()
 	{
 		return priorityQueue.isEmpty();
+	}
+	
+	public void clear()
+	{
+		priorityQueue.clear();
 	}
 	
 	public void dump()
