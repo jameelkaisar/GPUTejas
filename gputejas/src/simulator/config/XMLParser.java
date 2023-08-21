@@ -27,15 +27,29 @@ import generic.PortType;
 
 import java.io.File;
 import java.util.Hashtable;
+import java.util.HashMap;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import memorysystem.directory.CentralizedDirectoryCache;
+import memorysystem.NucaCache.Mapping;
+import memorysystem.NucaCache;
+import memorysystem.NucaCache.NucaType;
+
 import memorysystem.Cache;
 import memorysystem.Cache.CacheType;
 import memorysystem.Cache.CoherenceType;
+import net.RoutingAlgo;
+import net.NOC.CONNECTIONTYPE;
+import net.NOC.TOPOLOGY;
+import main.ArchitecturalComponent;
 
 import org.w3c.dom.*;
+
+import config.MainMemoryConfig.QueuingStructure;
+import config.MainMemoryConfig.RowBufferPolicy;
+import config.MainMemoryConfig.SchedulingPolicy;
 
 
 
@@ -55,7 +69,9 @@ public class XMLParser
 		
 			setSimulationParameters();
 			setSystemParameters();
-			setLatencyParameters();
+			createSharedCacheConfigs();
+			setLatencyandEnergyParameters();
+			
 		} 
 		catch (Exception e) 
 		{
@@ -63,7 +79,38 @@ public class XMLParser
 		}
  	}
 			
-	private static void setLatencyParameters()
+
+	private static void createSharedCacheConfigs() throws Exception {
+		Element sharedCachesNode = (Element)doc.getElementsByTagName("SharedCaches").item(0);
+		
+		NodeList nodeLst = sharedCachesNode.getElementsByTagName("Cache");
+		if (nodeLst.item(0) == null) {
+			System.out.println("Shared caches not found !!");
+		}
+		
+		for(int i=0; i<nodeLst.getLength(); i++) {
+			Element cacheNode = (Element)nodeLst.item(i);
+			CacheConfig config = createCacheConfig(cacheNode);
+			config.cacheName = cacheNode.getAttribute("type");
+			SystemConfig.sharedCacheConfigs.add(config);
+		}
+	}
+	
+	private static CacheConfig createCacheConfig(Element cacheNode) {
+		CacheConfig config = new CacheConfig();
+		
+		config.nextLevel=cacheNode.getAttribute("nextLevel");
+		config.cacheName = cacheNode.getAttribute("name");
+		
+		String cacheType = cacheNode.getAttribute("type");
+		
+		Element cacheTypeElmnt = searchLibraryForItem(cacheType);
+		setCacheProperties(cacheTypeElmnt, config);
+		
+		return config;
+	}
+	
+	private static void setLatencyandEnergyParameters()
 	{
 		NodeList nodeLst = doc.getElementsByTagName("OperationLatency");
 		Node latencyNode = nodeLst.item(0);
@@ -82,9 +129,27 @@ public class XMLParser
 		OperationLatencyConfig.callLatency= Integer.parseInt(getImmediateString("call", latencyElmnt));
 		OperationLatencyConfig.returnLatency= Integer.parseInt(getImmediateString("return", latencyElmnt));
 		OperationLatencyConfig.exitLatency= Integer.parseInt(getImmediateString("exit", latencyElmnt));
+		
+		NodeList nodeLsts = doc.getElementsByTagName("OperationEnergy");
+		Node EnergyNode = nodeLsts.item(0);
+		Element EnergyElmnt = (Element) latencyNode;
+		OperationEnergyConfig.loadEnergy= Integer.parseInt(getImmediateString("load", EnergyElmnt));
+		OperationEnergyConfig.storeEnergy= Integer.parseInt(getImmediateString("store", EnergyElmnt));
+		OperationEnergyConfig.addressEnergy= Integer.parseInt(getImmediateString("address", EnergyElmnt));
+		OperationEnergyConfig.intALUEnergy= Integer.parseInt(getImmediateString("intALU", EnergyElmnt));
+		OperationEnergyConfig.intMULEnergy= Integer.parseInt(getImmediateString("intMUL", EnergyElmnt));
+		OperationEnergyConfig.intDIVEnergy= Integer.parseInt(getImmediateString("intDIV", EnergyElmnt));
+		OperationEnergyConfig.floatALUEnergy= Integer.parseInt(getImmediateString("floatALU", EnergyElmnt));
+		OperationEnergyConfig.floatMULEnergy= Integer.parseInt(getImmediateString("floatMUL", EnergyElmnt));
+		OperationEnergyConfig.floatDIVEnergy= Integer.parseInt(getImmediateString("floatDIV", EnergyElmnt));
+		OperationEnergyConfig.predicateEnergy= Integer.parseInt(getImmediateString("predicate", EnergyElmnt));
+		OperationEnergyConfig.branchEnergy= Integer.parseInt(getImmediateString("branch", EnergyElmnt));
+		OperationEnergyConfig.callEnergy= Integer.parseInt(getImmediateString("call", EnergyElmnt));
+		OperationEnergyConfig.returnEnergy= Integer.parseInt(getImmediateString("return", EnergyElmnt));
+		OperationEnergyConfig.exitEnergy= Integer.parseInt(getImmediateString("exit", EnergyElmnt));
 				
 	}
-	
+
 	private static void setSimulationParameters()
 	{
 		NodeList nodeLst = doc.getElementsByTagName("Simulation");
@@ -113,11 +178,44 @@ public class XMLParser
 		SystemConfig.mainMemPortType = setPortType(getImmediateString("MainMemoryPortType", systemElmnt));
 		SystemConfig.mainMemoryAccessPorts = Integer.parseInt(getImmediateString("MainMemoryAccessPorts", systemElmnt));
 		SystemConfig.mainMemoryPortOccupancy = Integer.parseInt(getImmediateString("MainMemoryPortOccupancy", systemElmnt));
-		
+		SystemConfig.memControllerToUse=true;
 		SystemConfig.cacheBusLatency = Integer.parseInt(getImmediateString("CacheBusLatency", systemElmnt));
-		SystemConfig.tpc = new TpcConfig[SystemConfig.NoOfTPC];		
 		
-		//Set tpc parameters
+		Element mainMemElmnt = (Element)(systemElmnt.getElementsByTagName("MainMemory")).item(0);
+		SystemConfig.mainMemoryControllerPower = getEnergyConfig(mainMemElmnt);
+		
+		Element globalClockElmnt = (Element)(systemElmnt.getElementsByTagName("GlobalClock")).item(0);
+		SystemConfig.globalClockPower = getEnergyConfig(globalClockElmnt);
+		
+	
+		String interconnect = getImmediateString("Interconnect",systemElmnt); 
+		if(interconnect.equalsIgnoreCase("Bus"))
+		{
+			SystemConfig.interconnect = SystemConfig.Interconnect.Bus;
+		}
+		else if(interconnect.equalsIgnoreCase("Noc"))
+		{
+			SystemConfig.interconnect = SystemConfig.Interconnect.Noc;
+		}
+		SystemConfig.tpc = new TpcConfig[SystemConfig.NoOfTPC];		
+		SystemConfig.nocConfig = new NocConfig();
+		NodeList NocLst = systemElmnt.getElementsByTagName("NOC");
+		Element nocElmnt = (Element) NocLst.item(0);
+		SystemConfig.nocConfig.power = getEnergyConfig(nocElmnt);
+	
+		setNocProperties(nocElmnt, SystemConfig.nocConfig);
+		
+		NodeList laserList = systemElmnt.getElementsByTagName("Laser");
+		Element laserElmnt = (Element) laserList.item(0);
+		setLaserProperties(laserElmnt);
+
+		//set Bus Parameters
+		NodeList busLst = systemElmnt.getElementsByTagName("BUS");
+		Element busElmnt = (Element) busLst.item(0);
+		SystemConfig.busEnergy = getEnergyConfig(busElmnt);
+		SystemConfig.busConfig = new BusConfig();
+		SystemConfig.busConfig.setLatency(Integer.parseInt(getImmediateString("Latency", busElmnt)));
+	//	Set tpc parameters
 		for(int i =0; i<SystemConfig.NoOfTPC ; i++)
 		{
 			SystemConfig.tpc[i] = new TpcConfig();
@@ -127,24 +225,106 @@ public class XMLParser
 			setTpcProperties(tpc, tpcElmnt);
 		}
 		
-		//Code for remaining Cache configurations
-		NodeList cacheLst = systemElmnt.getElementsByTagName("Cache");
-		for (int i = 0; i < cacheLst.getLength(); i++)
-		{
-			Element cacheElmnt = (Element) cacheLst.item(i);
-			String cacheName = cacheElmnt.getAttribute("name");
-			
-			if (!(SystemConfig.declaredCaches.containsKey(cacheName)))	//If the identically named cache is not already present
+//		//Code for remaining Cache configurations
+/*		NodeList cacheLst = systemElmnt.getElementsByTagName("Cache");
+		Node cacheNode = cacheLst.item(0);
+		Element cacheElmnt = (Element) cacheNode;
+		
+		CacheConfig iCacheConfigEntry = new CacheConfig();
+		CacheConfig constantCacheConfigEntry = new CacheConfig();
+		CacheConfig sharedConfigEntry = new CacheConfig();
+		//newCacheConfigEntry.levelFromTop = Cache.CacheType.Lower;				
+		NodeList iCacheList = cacheElmnt.getElementsByTagName("iCache");
+		Element iCacheElmnt = (Element) iCacheList.item(0);
+		String cacheType = iCacheElmnt.getAttribute("type");
+		Element cacheTypeElmnt = searchLibraryForItem(cacheType);
+		setCacheProperties(cacheTypeElmnt, iCacheConfigEntry);
+		iCacheConfigEntry.nextLevel = cacheElmnt.getAttribute("nextLevel");
+		iCacheConfigEntry.levelFromTop=Cache.CacheType.iCache;
+		SystemConfig.declaredCaches.put("iCache", iCacheConfigEntry);
+		
+		NodeList constantCacheList = cacheElmnt.getElementsByTagName("constantCache");
+		Element constantCacheElmnt = (Element) constantCacheList.item(0);
+		cacheType = constantCacheElmnt.getAttribute("type");
+		cacheTypeElmnt = searchLibraryForItem(cacheType);
+		setCacheProperties(cacheTypeElmnt, constantCacheConfigEntry);
+		constantCacheConfigEntry.nextLevel = cacheElmnt.getAttribute("nextLevel");
+		constantCacheConfigEntry.levelFromTop=Cache.CacheType.constantCache;
+		SystemConfig.declaredCaches.put("constantCache", constantCacheConfigEntry);
+				
+		NodeList sharedCacheList = cacheElmnt.getElementsByTagName("sharedCache");
+		Element sharedCacheElmnt = (Element) sharedCacheList.item(0);
+		cacheType = sharedCacheElmnt.getAttribute("type");
+		cacheTypeElmnt = searchLibraryForItem(cacheType);
+		setCacheProperties(cacheTypeElmnt,sharedConfigEntry);
+		sharedConfigEntry.nextLevel = cacheElmnt.getAttribute("nextLevel");
+		sharedConfigEntry.levelFromTop=Cache.CacheType.sharedCache;
+		SystemConfig.declaredCaches.put("sharedCache", sharedConfigEntry);	  */		
+//		
+		
+		if(SystemConfig.memControllerToUse==true){
+			MainMemoryConfig mainMemoryConfig=new MainMemoryConfig();
+			NodeList MemControllerLst = systemElmnt.getElementsByTagName("MainMemoryController");
+			Element MemControllerElmnt = (Element) MemControllerLst.item(0);
+			setMemControllerProperties(MemControllerElmnt,mainMemoryConfig, SystemConfig.tpc[0].sm[0].frequency);
+				}	
+	}
+	
+	
+	private static void setLaserProperties(Element laserElmnt) {
+		//ArchitecturalComponent.coldBus = false;
+		//ArchitecturalComponent.pshare = false;
+		//ArchitecturalComponent.probe = false;
+		
+		ArchitecturalComponent.gpushare = false;
+		ArchitecturalComponent.gpuatac = false;
+		
+		String tempStr = getImmediateString("noctype", laserElmnt);
+		
+		if(tempStr.equalsIgnoreCase("gpushare"))
+			ArchitecturalComponent.gpushare = true;
+		else
+			ArchitecturalComponent.gpuatac = true;
+		
+		// common for probe, coldbus and pshare
+		int i,j;
+		for(i=0;i<4;i++)
+			for(j=0;j<4;j++)
 			{
-				CacheConfig newCacheConfigEntry = new CacheConfig();
-				newCacheConfigEntry.levelFromTop = Cache.CacheType.Lower;
-				String cacheType = cacheElmnt.getAttribute("type");
-				Element cacheTypeElmnt = searchLibraryForItem(cacheType);
-				setCacheProperties(cacheTypeElmnt, newCacheConfigEntry);
-				newCacheConfigEntry.nextLevel = cacheElmnt.getAttribute("nextLevel");
-				SystemConfig.declaredCaches.put(cacheName, newCacheConfigEntry);
+				ArchitecturalComponent.PerStationHistoryTable.add(new HashMap<Integer, Integer>());
+				ArchitecturalComponent.channel_Available[i][j] = 0;
+				ArchitecturalComponent.waitingTime[i][j] = 0;
+				ArchitecturalComponent.stationAvailable[i][j] = 0;
+				ArchitecturalComponent.requestsReceived[i][j] = 0;
+				ArchitecturalComponent.requestsServiced[i][j] = 0;
 			}
-		}	
+		
+		
+		
+		ArchitecturalComponent.reconfInterval = Integer.parseInt(getImmediateString("interval", laserElmnt));
+		ArchitecturalComponent.threshold = Integer.parseInt(getImmediateString("threshold", laserElmnt));
+		ArchitecturalComponent.maxPower = Integer.parseInt(getImmediateString("maxpower", laserElmnt));
+		ArchitecturalComponent.laser_tokens = ArchitecturalComponent.maxPower;
+		
+		for(i=0;i<ArchitecturalComponent.maxPower;i++){
+			ArchitecturalComponent.laser_Available[i]=0;
+		}
+		
+//		tempStr = getImmediateString("fullShare", laserElmnt);
+//		if(tempStr.equalsIgnoreCase("false"))
+//		else
+//		{
+//			ArchitecturalComponent.fullShare = true;
+//			ArchitecturalComponent.swmr = false;
+//			int i,j;
+//			for(i=0;i<5;i++)
+//			{
+//				for(j=0;j<4;j++)
+//				{
+//					ArchitecturalComponent.laserStatus[i][j] = ArchitecturalComponent.maxPower;
+//				}
+//			}
+//		}
 	}
 
 	@SuppressWarnings("static-access")
@@ -172,7 +352,11 @@ public class XMLParser
 		sm.sp = new SpConfig[SmConfig.NoOfSP];
 		
 		
-		//Code for instruction cache configurations for each core
+		// set caches for SM
+		
+		setSMcaches(sm,smElmnt);
+		
+	/*	//Code for instruction cache configurations for each sm
 		NodeList iCacheList = smElmnt.getElementsByTagName("iCache");
 		Element iCacheElmnt = (Element) iCacheList.item(0);
 		String cacheType = iCacheElmnt.getAttribute("type");
@@ -182,7 +366,7 @@ public class XMLParser
 		sm.iCache.nextLevel = iCacheElmnt.getAttribute("nextLevel");
 		
 		
-		//Code for constant cache configurations for each core
+		//Code for constant cache configurations for each sm
 		NodeList constantCacheList = smElmnt.getElementsByTagName("constantCache");
 		Element constantCacheElmnt = (Element) constantCacheList.item(0);
 		cacheType = constantCacheElmnt.getAttribute("type");
@@ -192,15 +376,47 @@ public class XMLParser
 		sm.constantCache.nextLevel = constantCacheElmnt.getAttribute("nextLevel");
 				
 				
-		//Code for shared cache configurations for each core
+		//Code for shared cache configurations for each sm
 		NodeList sharedCacheList = smElmnt.getElementsByTagName("sharedCache");
 		Element sharedCacheElmnt = (Element) sharedCacheList.item(0);
 		cacheType = sharedCacheElmnt.getAttribute("type");
 		typeElmnt = searchLibraryForItem(cacheType);
 		sm.sharedCache.levelFromTop = CacheType.sharedCache;
 		setCacheProperties(typeElmnt, sm.sharedCache);
-		sm.sharedCache.nextLevel = sharedCacheElmnt.getAttribute("nextLevel");
+		sm.sharedCache.nextLevel = sharedCacheElmnt.getAttribute("nextLevel"); */
+		
+		Element decodeElmnt = (Element)(smElmnt.getElementsByTagName("Decode")).item(0);
+		sm.decodePower = getEnergyConfig(decodeElmnt);
+		
+		Element resultsBroadcastBusElmnt = (Element)(smElmnt.getElementsByTagName("ResultsBroadcastBus")).item(0);
+		sm.resultsBroadcastBusPower = getEnergyConfig(resultsBroadcastBusElmnt);
+		
 			
+		Element registerFileElmnt = (Element)(smElmnt.getElementsByTagName("RegisterFile")).item(0);
+		
+		Element BankElmnt = (Element)(registerFileElmnt.getElementsByTagName("Bank")).item(0);
+		sm.regconfig.num_banks = Integer.parseInt(getImmediateString("BankSize", BankElmnt));
+		sm.BankPower = getEnergyConfig(BankElmnt);
+
+		Element collectorElmnt = (Element)(registerFileElmnt.getElementsByTagName("Collector")).item(0);
+		sm.regconfig.num_collector_units = Integer.parseInt(getImmediateString("CollectorSize", collectorElmnt));
+		sm.CollectorUnitsDecodePower = getEnergyConfig(collectorElmnt);
+		
+
+		Element dispatchElmnt = (Element)(registerFileElmnt.getElementsByTagName("Dispatch")).item(0);
+		sm.regconfig.num_dispatch_units= Integer.parseInt(getImmediateString("DispatchSize", dispatchElmnt));
+		sm.DispatchPower = getEnergyConfig(dispatchElmnt);
+		
+			
+		Element AllocElmnt = (Element)(registerFileElmnt.getElementsByTagName("Alloc")).item(0);
+		sm.AllocDeallocPower = getEnergyConfig(AllocElmnt);
+		
+		Element ArbiterElmnt = (Element)(registerFileElmnt.getElementsByTagName("Arbiter")).item(0);
+		sm.ArbiterPower = getEnergyConfig(ArbiterElmnt);
+		
+		Element ScoreboardElmnt = (Element)(registerFileElmnt.getElementsByTagName("Scoreboard")).item(0);
+		sm.ScoreBoardPower = getEnergyConfig(ScoreboardElmnt);
+		
 		//Set sp parameters
 		for (int i = 0; i < SmConfig.NoOfSP; i++)
 		{
@@ -210,6 +426,53 @@ public class XMLParser
 			Element spElmnt = (Element) spLst.item(0);
 			setSpProperties(sp, spElmnt);
 		}
+		
+	}
+	
+	private static void setSMcaches(SmConfig sm, Element smElmnt){
+	
+		CacheConfig iCacheConfigEntry = new CacheConfig();
+		CacheConfig constantCacheConfigEntry = new CacheConfig();
+		CacheConfig sharedConfigEntry = new CacheConfig();
+		
+		
+		NodeList iCacheList = smElmnt.getElementsByTagName("iCache");
+		Element iCacheElmnt = (Element) iCacheList.item(0);
+		String cacheType = iCacheElmnt.getAttribute("type");
+		Element typeElmnt = searchLibraryForItem(cacheType);
+		sm.iCache.levelFromTop = CacheType.iCache;
+		setCacheProperties(typeElmnt, sm.iCache);
+		sm.iCache.nextLevel = iCacheElmnt.getAttribute("nextLevel");
+		SystemConfig.declaredCaches.put("iCache", iCacheConfigEntry);
+		
+		NodeList dCacheList = smElmnt.getElementsByTagName("iCache");
+		Element dCacheElmnt = (Element) iCacheList.item(0);
+		cacheType = iCacheElmnt.getAttribute("type");
+		typeElmnt = searchLibraryForItem(cacheType);
+		sm.dCache.levelFromTop = CacheType.dCache;
+		setCacheProperties(typeElmnt, sm.dCache);
+		sm.dCache.nextLevel = iCacheElmnt.getAttribute("nextLevel");
+		SystemConfig.declaredCaches.put("iCache", iCacheConfigEntry);
+		
+		//Code for constant cache configurations for each sm
+		NodeList constantCacheList = smElmnt.getElementsByTagName("constantCache");
+		Element constantCacheElmnt = (Element) constantCacheList.item(0);
+		cacheType = constantCacheElmnt.getAttribute("type");
+		typeElmnt = searchLibraryForItem(cacheType);
+		sm.constantCache.levelFromTop = CacheType.constantCache;
+		setCacheProperties(typeElmnt, sm.constantCache);
+		sm.constantCache.nextLevel = constantCacheElmnt.getAttribute("nextLevel");
+		SystemConfig.declaredCaches.put("constantCache", constantCacheConfigEntry);		
+				
+		//Code for shared cache configurations for each sm
+		NodeList sharedCacheList = smElmnt.getElementsByTagName("sharedCache");
+		Element sharedCacheElmnt = (Element) sharedCacheList.item(0);
+		cacheType = sharedCacheElmnt.getAttribute("type");
+		typeElmnt = searchLibraryForItem(cacheType);
+		sm.sharedCache.levelFromTop = CacheType.sharedCache;
+		setCacheProperties(typeElmnt, sm.sharedCache);
+		sm.sharedCache.nextLevel = sharedCacheElmnt.getAttribute("nextLevel");
+		SystemConfig.declaredCaches.put("sharedCache", sharedConfigEntry);		
 		
 	}
 
@@ -288,6 +551,8 @@ public class XMLParser
 	
 	private static void setCacheProperties(Element CacheType, CacheConfig cache)
 	{
+		
+		cache.cacheName = CacheType.getAttribute("name");
 		String tempStr = getImmediateString("WriteMode", CacheType);
 		if (tempStr.equalsIgnoreCase("WB"))
 			cache.writePolicy = CacheConfig.WritePolicy.WRITE_BACK;
@@ -302,14 +567,41 @@ public class XMLParser
 		
 		cache.blockSize = Integer.parseInt(getImmediateString("BlockSize", CacheType));
 		cache.assoc = Integer.parseInt(getImmediateString("Associativity", CacheType));
-		cache.size = Integer.parseInt(getImmediateString("Size", CacheType));
+		
+		if(isElementPresent("Size", CacheType)) {
+			cache.size = Integer.parseInt(getImmediateString("Size", CacheType));
+		} else {
+			cache.size = 0;
+		}
+		
+		/*NodeList nodeLst = CacheType.getElementsByTagName("IsDirectory");
+		if (nodeLst.item(0) == null) {
+			cache.isDirectory = false;
+		} else {
+			cache.isDirectory = Boolean.parseBoolean(getImmediateString("IsDirectory", CacheType));
+		}
+		
+		if(isElementPresent("NumEntries", CacheType)) {
+			cache.numEntries = Integer.parseInt(getImmediateString("NumEntries", CacheType));
+			cache.size = cache.numEntries*cache.blockSize;
+		} else {
+			cache.numEntries = 0;
+		}
+		
+		if(cache.size==0 && cache.numEntries==0) {
+			misc.Error.showErrorAndExit("Invalid cache configuration : size=0 and numEntries=0 !!");
+		} */
+		
 		cache.latency = Integer.parseInt(getImmediateString("Latency", CacheType));
 		cache.portType = setPortType(getImmediateString("PortType", CacheType));
 		cache.accessPorts = Integer.parseInt(getImmediateString("AccessPorts", CacheType));
 		cache.portOccupancy = Integer.parseInt(getImmediateString("PortOccupancy", CacheType));
 		cache.multiportType = setMultiPortingType(getImmediateString("MultiPortingType", CacheType));
 		cache.mshrSize = Integer.parseInt(getImmediateString("MSHRSize", CacheType));
-				
+		
+		
+		
+		cache.power=getCacheEnergyConfig(CacheType);
 		tempStr = getImmediateString("Coherence", CacheType);
 		if (tempStr.equalsIgnoreCase("N"))
 			cache.coherence = CoherenceType.None;
@@ -324,8 +616,21 @@ public class XMLParser
 		}
 		cache.numberOfBuses = Integer.parseInt(getImmediateString("NumBuses", CacheType));
 		cache.busOccupancy = Integer.parseInt(getImmediateString("BusOccupancy", CacheType));
+		tempStr = getImmediateString("Nuca", CacheType);
+		cache.nucaType = NucaType.valueOf(tempStr);
+		
+		tempStr = getImmediateString("NucaMapping", CacheType);
+		if (tempStr.equalsIgnoreCase("S"))
+			cache.mapping = Mapping.SET_ASSOCIATIVE;
+		else if (tempStr.equalsIgnoreCase("A"))
+			cache.mapping = Mapping.ADDRESS;
+		else
+		{
+			System.err.println("XML Configuration error : Invalid value of 'NucaMapping' (please enter 'S'or 'A')");
+			System.exit(1);
+		}
 				
-	tempStr = getImmediateString("LastLevel", CacheType);
+		tempStr = getImmediateString("LastLevel", CacheType);
 		if (tempStr.equalsIgnoreCase("Y"))
 			cache.isLastLevel = true;
 		else if (tempStr.equalsIgnoreCase("N"))
@@ -336,6 +641,186 @@ public class XMLParser
 			System.exit(1);
 		}
 		
+	}
+	
+	
+	private static boolean isElementPresent(String tagName, Element parent) // Get the immediate string value of a particular tag name under a particular parent tag
+	{
+		NodeList nodeLst = parent.getElementsByTagName(tagName);
+		if (nodeLst.item(0) == null) {
+			return false;
+		} else {
+			return true;
+		}
+	}
+	
+	private static void setNocProperties(Element NocType, NocConfig nocConfig)
+	{
+		if(SystemConfig.interconnect==SystemConfig.Interconnect.Noc) {
+			String nocConfigFilename = getImmediateString("NocConfigFile", NocType);
+			nocConfig.NocTopologyFile = nocConfigFilename;
+		}
+		
+		nocConfig.numberOfBuffers = Integer.parseInt(getImmediateString("NocNumberOfBuffers", NocType));
+		nocConfig.portType = setPortType(getImmediateString("NocPortType", NocType));
+		nocConfig.accessPorts = Integer.parseInt(getImmediateString("NocAccessPorts", NocType));
+		nocConfig.portOccupancy = Integer.parseInt(getImmediateString("NocPortOccupancy", NocType));
+		nocConfig.latency = Integer.parseInt(getImmediateString("NocLatency", NocType));
+		nocConfig.operatingFreq = Integer.parseInt(getImmediateString("NocOperatingFreq", NocType));
+		nocConfig.latencyBetweenNOCElements = Integer.parseInt(getImmediateString("NocLatencyBetweenNOCElements", NocType));
+		
+		String tempStr = getImmediateString("NocTopology", NocType);
+		nocConfig.topology = TOPOLOGY.valueOf(tempStr);
+		
+		tempStr = getImmediateString("NocRoutingAlgorithm", NocType);
+		nocConfig.rAlgo = RoutingAlgo.ALGO.valueOf(tempStr);
+				
+		tempStr = getImmediateString("NocSelScheme", NocType);
+		nocConfig.selScheme = RoutingAlgo.SELSCHEME.valueOf(tempStr);
+		
+		tempStr = getImmediateString("NocRouterArbiter", NocType);
+		nocConfig.arbiterType = RoutingAlgo.ARBITER.valueOf(tempStr);
+				
+		nocConfig.technologyPoint = Integer.parseInt(getImmediateString("TechPoint", NocType));
+		
+		tempStr = getImmediateString("NocConnection", NocType);
+		nocConfig.ConnType = CONNECTIONTYPE.valueOf(tempStr);
+	}
+	private static void setMemControllerProperties(Element MemControllerElmnt, MainMemoryConfig mainMemConfig, int sm_freq){
+		
+		mainMemConfig.rowBufferPolicy = setRowBufferPolicy(getImmediateString("rowBufferPolicy", MemControllerElmnt));
+		mainMemConfig.schedulingPolicy = setSchedulingPolicy(getImmediateString("schedulingPolicy", MemControllerElmnt));
+		mainMemConfig.queuingStructure = setQueuingStructure(getImmediateString("queuingStructure", MemControllerElmnt));
+		mainMemConfig.numRankPorts=Integer.parseInt(getImmediateString("numRankPorts", MemControllerElmnt));
+		mainMemConfig.rankPortType = setPortType(getImmediateString("rankPortType", MemControllerElmnt));
+		mainMemConfig.rankOccupancy=Integer.parseInt(getImmediateString("rankOccupancy", MemControllerElmnt));
+		mainMemConfig.rankLatency=Integer.parseInt(getImmediateString("rankLatency", MemControllerElmnt));	//this is not used anywhere as we are modelling the RAM and bus
+		mainMemConfig.rankOperatingFrequency=Integer.parseInt(getImmediateString("rankOperatingFrequency", MemControllerElmnt));
+		
+		mainMemConfig.numChans=Integer.parseInt(getImmediateString("numChans", MemControllerElmnt));
+		
+		//those related to memory not added
+				//calculate later
+				
+		mainMemConfig.numRanks=Integer.parseInt(getImmediateString("numRanks", MemControllerElmnt));
+		mainMemConfig.numBanks=Integer.parseInt(getImmediateString("numBanks", MemControllerElmnt));
+		mainMemConfig.numRows=Integer.parseInt(getImmediateString("numRows", MemControllerElmnt));
+		mainMemConfig.numCols=Integer.parseInt(getImmediateString("numCols", MemControllerElmnt));
+		mainMemConfig.TRANSQUEUE_DEPTH=Integer.parseInt(getImmediateString("TRANSQUEUE_DEPTH", MemControllerElmnt));
+		mainMemConfig.TOTAL_ROW_ACCESSES=Integer.parseInt(getImmediateString("TOTAL_ROW_ACCESSES", MemControllerElmnt));
+
+		mainMemConfig.tCK=Double.parseDouble(getImmediateString("tCK", MemControllerElmnt));
+
+		int ram_freq = (int)((1/mainMemConfig.tCK)*1000);
+		double cpu_ram_ratio = sm_freq/ram_freq;
+		mainMemConfig.sm_ram_ratio = cpu_ram_ratio;
+
+		//timing params
+		mainMemConfig.tCCD = (int) Math.round(Integer.parseInt(getImmediateString("tCCD", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tBL = (int) Math.round(Integer.parseInt(getImmediateString("tBL", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tCL = (int) Math.round(Integer.parseInt(getImmediateString("tCL", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tAL = (int) Math.round(Integer.parseInt(getImmediateString("tAL", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tRP = (int) Math.round(Integer.parseInt(getImmediateString("tRP", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tCMD = (int) Math.round(Integer.parseInt(getImmediateString("tCMD", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tRC = (int) Math.round(Integer.parseInt(getImmediateString("tRC", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tRCD = (int) Math.round(Integer.parseInt(getImmediateString("tRCD", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tRAS = (int) Math.round(Integer.parseInt(getImmediateString("tRAS", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tRFC = (int) Math.round(Integer.parseInt(getImmediateString("tRFC", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tRTRS = (int) Math.round(Integer.parseInt(getImmediateString("tRTRS", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tRRD = (int) Math.round(Integer.parseInt(getImmediateString("tRRD", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tRTP = (int) Math.round(Integer.parseInt(getImmediateString("tRTP", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tWTR = (int) Math.round(Integer.parseInt(getImmediateString("tWTR", MemControllerElmnt))*cpu_ram_ratio);
+		mainMemConfig.tWR = (int) Math.round(Integer.parseInt(getImmediateString("tWR", MemControllerElmnt))*cpu_ram_ratio);
+		
+		//for refresh
+		mainMemConfig.RefreshPeriod=Integer.parseInt(getImmediateString("RefreshPeriod", MemControllerElmnt));
+		mainMemConfig.DATA_BUS_BITS=Integer.parseInt(getImmediateString("DATA_BUS_BITS", MemControllerElmnt));
+		
+		//dont need to multiply for tFAW as it runs on RAM clock anyway
+		mainMemConfig.tFAW=Integer.parseInt(getImmediateString("tFAW", MemControllerElmnt));
+		mainMemConfig.BL=Integer.parseInt(getImmediateString("tBL", MemControllerElmnt));  //this is the number of bursts, not scaled to cpu clock
+		//used for adressing mapping etc
+		
+		mainMemConfig.tRL = (mainMemConfig.tCL+mainMemConfig.tAL);
+		mainMemConfig.tWL = (int) Math.round(mainMemConfig.tRL-1*cpu_ram_ratio);
+		mainMemConfig.ReadToPreDelay = (mainMemConfig.tAL+mainMemConfig.tBL/2+ Math.max(mainMemConfig.tRTP,mainMemConfig.tCCD)-mainMemConfig.tCCD);
+		mainMemConfig.WriteToPreDelay = (mainMemConfig.tWL+mainMemConfig.tBL/2+mainMemConfig.tWR);
+		mainMemConfig.ReadToWriteDelay = (mainMemConfig.tRL+mainMemConfig.tBL/2+mainMemConfig.tRTRS-mainMemConfig.tWL);
+		mainMemConfig.ReadAutopreDelay = (mainMemConfig.tAL+mainMemConfig.tRTP+mainMemConfig.tRP);
+		mainMemConfig.WriteAutopreDelay = (mainMemConfig.tWL+mainMemConfig.tBL/2+mainMemConfig.tWR+mainMemConfig.tRP);
+		mainMemConfig.WriteToReadDelayB = (mainMemConfig.tWL+mainMemConfig.tBL/2+mainMemConfig.tWTR);
+		mainMemConfig.WriteToReadDelayR = (mainMemConfig.tWL+mainMemConfig.tBL/2+mainMemConfig.tRTRS-mainMemConfig.tRL);
+		
+		
+		//bus params
+		mainMemConfig.TRANSACTION_SIZE = mainMemConfig.DATA_BUS_BITS/8 * mainMemConfig.BL;
+		mainMemConfig.DATA_BUS_BYTES = mainMemConfig.DATA_BUS_BITS/8;
+		SystemConfig.mainMemoryConfig=mainMemConfig;
+	
+	}
+
+	private static RowBufferPolicy setRowBufferPolicy(String inputStr)
+	{
+		RowBufferPolicy result = null;
+		if (inputStr.equalsIgnoreCase("OpenPage"))
+			result = RowBufferPolicy.OpenPage;
+		else if (inputStr.equalsIgnoreCase("ClosePage"))
+			result = RowBufferPolicy.ClosePage;
+		else
+		{
+			System.err.println("XML Configuration error : Invalid Row Buffer Policy specified");
+			System.exit(1);
+		}
+		return result;
+	}
+	//added by kush
+	
+	private static SchedulingPolicy setSchedulingPolicy(String inputStr)
+	{
+		SchedulingPolicy result = null;
+		if (inputStr.equalsIgnoreCase("RankThenBankRoundRobin"))
+			result = SchedulingPolicy.RankThenBankRoundRobin;
+		else if (inputStr.equalsIgnoreCase("BankThenRankRoundRobin"))
+			result = SchedulingPolicy.BankThenRankRoundRobin;
+		else
+		{
+			System.err.println("XML Configuration error : Invalid DRAM Scheduling Policy specified");
+			System.exit(1);
+		}
+		return result;
+	}
+	//added by kush
+	
+	private static QueuingStructure setQueuingStructure(String inputStr)
+	{
+		QueuingStructure result = null;
+		if (inputStr.equalsIgnoreCase("PerRank"))
+			result = QueuingStructure.PerRank;
+		else if (inputStr.equalsIgnoreCase("PerRankPerBank"))
+			result = QueuingStructure.PerRankPerBank;
+		else
+		{
+			System.err.println("XML Configuration error : Invalid DRAM Queuing Structure specified");
+			System.exit(1);
+		}
+		return result;
+	}
+	private static EnergyConfig getEnergyConfig(Element parent)
+	{
+		double leakageEnergy = Double.parseDouble(getImmediateString("LeakageEnergy", parent));
+		double dynamicEnergy = Double.parseDouble(getImmediateString("DynamicEnergy", parent));
+		
+		EnergyConfig energyConfig = new EnergyConfig(leakageEnergy, dynamicEnergy);
+		return energyConfig;
+	}
+	
+	private static CacheEnergyConfig getCacheEnergyConfig(Element parent)
+	{
+		CacheEnergyConfig powerConfig = new CacheEnergyConfig();
+		powerConfig.leakageEnergy = Double.parseDouble(getImmediateString("LeakagePower", parent));
+		powerConfig.readDynamicEnergy = Double.parseDouble(getImmediateString("ReadDynamicPower", parent));
+		powerConfig.writeDynamicEnergy = Double.parseDouble(getImmediateString("WriteDynamicPower", parent));
+		return powerConfig;
 	}
 	
 }

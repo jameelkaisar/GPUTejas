@@ -37,6 +37,7 @@ public abstract class SMMemorySystem extends SimulationElement
 	protected Cache iCache;
 	protected Cache constantCache;
 	protected Cache sharedCache;
+	protected Cache dCache;
 	
 	protected long numInstructionSetChunksNoted = 0;
 	protected long numDataSetChunksNoted = 0;
@@ -52,7 +53,8 @@ public abstract class SMMemorySystem extends SimulationElement
 		
 		CacheConfig cacheParameterObj;
 		cacheParameterObj = SystemConfig.tpc[tpc_id].sm[sm_id].iCache;
-		iCache = new Cache(cacheParameterObj, this);
+		iCache = new Cache("iCache", this.sm_id, cacheParameterObj, this);
+		iCache.setComInterface(sm.getComInterface());
 		//add initial cache pull event
 		this.sm.getEventQueue().addEvent(
 									new CachePullEvent(
@@ -64,10 +66,26 @@ public abstract class SMMemorySystem extends SimulationElement
 											this.tpc_id,
 											this.sm_id));
 		
+		// dCache
+		
+		cacheParameterObj = SystemConfig.tpc[tpc_id].sm[sm_id].dCache;
+		dCache = new Cache("dCache", this.sm_id, cacheParameterObj, this);
+		dCache.setComInterface(sm.getComInterface());
+		//add initial cache pull event
+		this.sm.getEventQueue().addEvent(
+									new CachePullEvent(
+											this.sm.getEventQueue(),
+											0,
+											dCache,
+											dCache,
+											RequestType.PerformPulls,
+											this.tpc_id,
+											this.sm_id));
 		
 		//initialize constant cache
 		cacheParameterObj = SystemConfig.tpc[tpc_id].sm[sm_id].constantCache;
-		constantCache = new Cache(cacheParameterObj, this);
+		constantCache = new Cache("constantCache", this.sm_id, cacheParameterObj, this);
+		constantCache.setComInterface(sm.getComInterface());
 		//add initial cache pull event
 		this.sm.getEventQueue().addEvent(
 									new CachePullEvent(
@@ -81,24 +99,20 @@ public abstract class SMMemorySystem extends SimulationElement
 		
 		//initialize shared cache
 		cacheParameterObj = SystemConfig.tpc[tpc_id].sm[sm_id].sharedCache;
-		sharedCache = new Cache(cacheParameterObj, this);
+		sharedCache = new Cache("sharedCache", this.sm_id, cacheParameterObj, this);
+		sharedCache.setComInterface(sm.getComInterface());
 		//add initial cache pull event
 		this.sm.getEventQueue().addEvent(
-									new CachePullEvent(
-											this.sm.getEventQueue(),
-											0,
-											sharedCache,
-											sharedCache,
-											RequestType.PerformPulls,
+									new CachePullEvent(this.sm.getEventQueue(),	0,sharedCache,	sharedCache,RequestType.PerformPulls,
 											this.tpc_id,
 											this.sm_id));
 	}
 	
-	public abstract void issueRequestToInstrCache(long address, int i);
+	public abstract void issueRequestToInstrCache(long address);
 			
-	public abstract boolean issueRequestToConstantCache(RequestType requestType, long address, int i) throws Exception;
+	public abstract boolean issueRequestToConstantCache(RequestType requestType, long address) throws Exception;
 	
-	public abstract boolean issueRequestToSharedCache(RequestType requestType, long address, int i) throws Exception;
+	public abstract boolean issueRequestToSharedCache(RequestType requestType, long address) throws Exception;
 	
 
 	public Cache getiCache() {
@@ -113,6 +127,10 @@ public abstract class SMMemorySystem extends SimulationElement
 		return sharedCache;
 	}
 
+	private String tagNameWithSMId(String name) {
+		return (name + "[" + this.sm_id + "]");
+	}
+	
 	public void setSM(SM sm) {
 		this.sm = sm;
 	}

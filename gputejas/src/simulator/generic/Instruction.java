@@ -22,15 +22,14 @@
 package generic;
 
 import java.io.Serializable;
-
-
-
+// 
+// TODO here we have to incorporate the registers
 @SuppressWarnings("serial")
 public class Instruction implements Serializable
 {
 	public OperationType type;	
 	public Long MemoryAddresses[];
-	
+	public int registers[];
 	private long ciscProgramCounter;
 	public int blockID;
 	
@@ -80,106 +79,121 @@ public class Instruction implements Serializable
 		return ins;
 	}
 	
-	public static Instruction getLoadInstruction(Long MemoryAddresses[])
+	public static Instruction getLoadInstruction(int [] regs,Long MemoryAddresses[])
 	{
 		
 		Instruction ins = new Instruction();
 		ins.set(OperationType.load, MemoryAddresses);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
-	public static Instruction getConstantLoadInstruction(Long MemoryAddresses[])
+	public static Instruction getConstantLoadInstruction(int [] regs,Long MemoryAddresses[])
 	{
 		
 		Instruction ins = new Instruction();
 		ins.set(OperationType.load_const, MemoryAddresses);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
-	public static Instruction getSharedLoadInstruction(Long MemoryAddresses[])
+	public static Instruction getSharedLoadInstruction(int [] regs,Long MemoryAddresses[])
 	{
 		
 		Instruction ins = new Instruction();
 		ins.set(OperationType.load_shared, MemoryAddresses);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
 	
-	public static Instruction getStoreInstruction(Long MemoryAddresses[])
+	public static Instruction getStoreInstruction(int [] regs,Long MemoryAddresses[])
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.store, MemoryAddresses);
+		ins.setRegisters(regs);
 		return ins;
+		
 	}
 	
-	public static Instruction getConstantStoreInstruction(Long MemoryAddresses[])
+	public static Instruction getConstantStoreInstruction(int [] regs,Long MemoryAddresses[])
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.store_const, MemoryAddresses);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
-	public static Instruction getSharedStoreInstruction(Long MemoryAddresses[])
+	public static Instruction getSharedStoreInstruction(int [] regs,Long MemoryAddresses[])
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.store_shared, MemoryAddresses);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
-	public static Instruction getAddressInstruction()
+	public static Instruction getAddressInstruction(int [] regs)
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.address);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
-	public static Instruction getIntALUInstruction()
+	public static Instruction getIntALUInstruction(int [] regs)
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.integerALU);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
 	
-	public static Instruction getIntegerMultiplicationInstruction()
+	public static Instruction getIntegerMultiplicationInstruction(int [] regs)
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.integerMul);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
-	public static Instruction getIntegerDivisionInstruction()
+	public static Instruction getIntegerDivisionInstruction(int [] regs)
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.integerDiv);
+		ins.setRegisters(regs);
 		return ins;
 	}
 
-	public static Instruction getFloatingPointALU()
+	public static Instruction getFloatingPointALU(int [] regs)
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.floatALU);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
-	public static Instruction getFloatingPointMultiplication()
+	public static Instruction getFloatingPointMultiplication(int [] regs)
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.floatMul);
+		ins.setRegisters(regs);
 		return ins;
-	}
+			}
 	
-	public static Instruction getFloatingPointDivision()
+	public static Instruction getFloatingPointDivision(int [] regs)
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.floatDiv);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
-	public static Instruction getPredicateInstruction()
+	public static Instruction getPredicateInstruction(int [] regs)
 	{
 		Instruction ins = new Instruction();
 		ins.set(OperationType.predicate);
+		ins.setRegisters(regs);
 		return ins;
 	}
 	
@@ -249,7 +263,11 @@ public class Instruction implements Serializable
 		this.MemoryAddresses = MemoryAddresses;
 	}
 
-	
+	public void setRegisters(int regs[])
+	{
+		registers=regs;
+			
+	}
 	/**
 	 * strInstruction method returns the instruction information in a string.
 	 * @return String describing the instruction

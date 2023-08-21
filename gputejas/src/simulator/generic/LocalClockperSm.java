@@ -28,8 +28,8 @@ import config.TpcConfig;
 
 public class LocalClockperSm {
 	
-	long currentTime;
-	int stepSize, smId,tpcId;
+	 long currentTime;
+	static int stepSize, smId,tpcId;
 
 	public LocalClockperSm(int id, int Tid) {
 	
@@ -42,80 +42,86 @@ public class LocalClockperSm {
 
 	@SuppressWarnings("unused")
 	public static void systemTimingSetUp(SM[][] cores)
-	{
-		int[] time_periods = new int[SystemConfig.NoOfTPC*TpcConfig.NoOfSM];
-		int i = 0,j=0,k=0;
-		int seed = Integer.MAX_VALUE;
-		String cacheName;
-		Cache cache;
-		
-		
-		int[] freq_list = new int[SystemConfig.NoOfTPC*TpcConfig.NoOfSM];
-		boolean flag = false;
-		boolean HCFFound = false;
-		int HCF = 1;
-		for(i = 1; ; i++)
-		{
-			flag = true;
-			for(j = 0; j < SystemConfig.NoOfTPC*TpcConfig.NoOfSM; j++)
-			{
-				if(freq_list[j]%i != 0)
-				{
-					flag = false;
-					break;
-				}
-				
-				if(freq_list[j] == i)
-				{
-					HCFFound = true;
-				}					
-			}
-			
-			if(flag == true)
-			{
-				HCF = i;
-			}
-			
-			if(HCFFound == true)
-				break;
-		}
-		
-		System.out.println("HCF = " + HCF);
-		
-		for(i = 0; i < SystemConfig.NoOfTPC*TpcConfig.NoOfSM; i++)
-		{
-			freq_list[i] = freq_list[i]/HCF;
-		}
-		
-		int LCM, cur = freq_list[0];
-		
-		while(true)
-		{
-			flag = true;
-			for(i = 0; i < SystemConfig.NoOfTPC*TpcConfig.NoOfSM ; i++)
-			{
-				if(cur%freq_list[i] != 0)
-				{
-					flag = false;
-					break;
-				}
-			}
-			if(flag == true)
-			{
-				LCM = cur;
-				break;
-			}
-			cur = cur + freq_list[0];
-		}
-		
-		System.out.println("LCM = " + LCM);
+	{   System.out.println("IN SystemTimingSEtup");
+//		int[] time_periods = new int[SystemConfig.NoOfTPC*TpcConfig.NoOfSM];
+//		int i = 0,j=0,k=0;
+//		int seed = Integer.MAX_VALUE;
+//		String cacheName;
+//		Cache cache;
+//		
+//		
+//		int[][] freq_list = new int[SystemConfig.NoOfTPC][TpcConfig.NoOfSM];
+//		boolean flag = false;
+//		for(i = 0; i < SystemConfig.NoOfTPC; i++)
+//		{	for(j = 0; j < TpcConfig.NoOfSM; j++)
+//			freq_list[i][j] = Math.round(cores[i][j].getFrequency()/100);
+//		}
+//		
+//		boolean HCFFound = false;
+//		int HCF = 1;
+//		for(i = 1; ; i++)
+//		{
+//			flag = true;
+//			for(j = 0; j < SystemConfig.NoOfTPC*TpcConfig.NoOfSM; j++)
+//			{
+//				if(freq_list[j]%i != 0)
+//				{
+//					flag = false;
+//					break;
+//				}
+//				
+//				if(freq_list[j] == i)
+//				{
+//					HCFFound = true;
+//				}					
+//			}
+//			
+//			if(flag == true)
+//			{
+//				HCF = i;
+//			}
+//			
+//			if(HCFFound == true)
+//				break;
+//		}
+//		
+//		System.out.println("HCF = " + HCF);
+//		
+//		for(i = 0; i < SystemConfig.NoOfTPC*TpcConfig.NoOfSM; i++)
+//		{
+//			freq_list[i] = freq_list[i]/HCF;
+//		}
+//		
+//		int LCM, cur = freq_list[0];
+//		
+//		while(true)
+//		{
+//			flag = true;
+//			for(i = 0; i < SystemConfig.NoOfTPC*TpcConfig.NoOfSM ; i++)
+//			{
+//				if(cur%freq_list[i] != 0)
+//				{
+//					flag = false;
+//					break;
+//				}
+//			}
+//			if(flag == true)
+//			{
+//				LCM = cur;
+//				break;
+//			}
+//			cur = cur + freq_list[0];
+//		}
+//		
+//		System.out.println("LCM = " + LCM);
 		
 		//set step sizes of components
-		for(i = 0,k=0; i < SystemConfig.NoOfTPC; i++)
+		int i,j;
+		for(i = 0; i < SystemConfig.NoOfTPC; i++)
 			for(j=0;j<TpcConfig.NoOfSM;j++)
 		{
-			cores[i][j].setStepSize(LCM/freq_list[k]);
-			k++;
+			cores[i][j].setStepSize(1);
+
 			
 		}
 	}
@@ -124,13 +130,13 @@ public class LocalClockperSm {
 		return currentTime;
 	}
 
-	public void setCurrentTime(long currentTime) {
-		this.currentTime = currentTime;
+	public void setCurrentTime(long currenttime) {
+		currentTime = currenttime;
 	}
 	
 	public void incrementClock()
 	{
-		this.currentTime += this.stepSize;
+		currentTime += stepSize;
 	}
 
 	public int getStepSize() {

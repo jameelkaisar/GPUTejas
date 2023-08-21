@@ -66,7 +66,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		return currentSize;
 	}
 	
-	@Override
+	
 	public boolean isFull()
 	{
 		if(getCurrentSize() < mshrStructSize)
@@ -82,7 +82,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 	/*
 	 * return value signifies whether new omrentry created or not
 	 * */
-	@Override
+	
 	public boolean addOutstandingRequest(AddressCarryingEvent eventAdded)
 	{
 		AddressCarryingEvent event = (AddressCarryingEvent)eventAdded.clone();
@@ -108,7 +108,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		}
 	}
 	
-	@Override
+	//@Override
 	public ArrayList<AddressCarryingEvent> removeRequestsByAddress(AddressCarryingEvent event)
 	{
 		long address = event.getAddress();
@@ -116,7 +116,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		
 		OMREntry entry = this.mshr.remove(blockAddr);
 		if(entry==null) {
-			misc.Error.showErrorAndExit("event not in MSHR : " + event);
+//			misc.Error.showErrorAndExit("event not in MSHR : " + event);
 			return null;
 		} else {
 			Event removedEvent = entry.outStandingEvents.get(0);
@@ -132,7 +132,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		}
 	}
 	
-	@Override
+	
 	public boolean removeRequestsByRequestTypeAndAddress(AddressCarryingEvent addrevent)
 	{
 		long addr = addrevent.getAddress();
@@ -182,7 +182,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		}
 	}
 	
-	@Override
+	
 	public void handleLowerMshrFull( AddressCarryingEvent eventToBeSent)
 	{
 		OMREntry omrEntry =  getMshrEntry(eventToBeSent.getAddress());
@@ -230,7 +230,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 	}
 	
 	@SuppressWarnings("unused")
-	@Override
+	
 	public boolean containsWriteOfEvictedLine(long address)
 	{
 		if(true) {
@@ -252,7 +252,7 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		}
 	}
 	
-	@Override
+	
 	public void dump()
 	{
 		Enumeration<OMREntry> omrEntries = mshr.elements();
@@ -285,17 +285,17 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		
 	}
 
-	@Override
+	
 	public int getMSHRStructSize() {
 		return mshrStructSize;
 	}
 
-	@Override
+	//@Override
 	public int getMaxSizeReached() {
 		return maxSizeReached;
 	}
 
-	@Override
+	//@Override
 	public int numOutStandingRequests(AddressCarryingEvent event) {
 		long addr = event.getAddress();
 		long dirAddr = addr>>>offset;
@@ -309,12 +309,12 @@ public class Mode3MSHR extends SimulationElement implements MissStatusHoldingReg
 		}
 	}
 
-	@Override
+	//@Override
 	public boolean removeRequestsByRequestTypeAndAddressIfAvailable(AddressCarryingEvent addrevent) {
 		return removeRequestsByRequestTypeAndAddress(addrevent);
 	}
 
-	@Override
+	//@Override
 	public ArrayList<AddressCarryingEvent> removeRequestsByAddressIfAvailable(AddressCarryingEvent event) {
 		long address = event.getAddress();
 		long blockAddr = address >>> offset;

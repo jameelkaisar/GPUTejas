@@ -80,7 +80,8 @@ public class Port
 	{
 		if(this.portType == PortType.Unlimited)
 		{
-			event.addEventTime(ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime());
+//			event.addEventTime(ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime());
+			event.addEventTime(GlobalClock.getCurrentTime());
 			event.getEventQ().addEvent(event);
 			return;
 		}
@@ -102,16 +103,17 @@ public class Port
 			
 			// If a port is available, set its portBusyUntil field to
 			// current time
-			if(portBusyUntil[availablePortID]<
-					ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime())
-			{
+	//		System.out.println("tpc "+event.tpcId+" sm id "+event.smId);
+		//	if(portBusyUntil[availablePortID]<
+		//			ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime())
+	//		{
 				// this port will be busy for next occupancy cycles
-				portBusyUntil[availablePortID] = 
-						ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime() + occupancy;
-			}else{
+		//		portBusyUntil[availablePortID] = 
+	//					ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime() + occupancy;
+	//		}else{
 				// set the port as busy for occupancy cycles
 				portBusyUntil[availablePortID] += occupancy;	
-			}
+//			}
 						
 			// set the time of the event
 			event.addEventTime(portBusyUntil[availablePortID]);

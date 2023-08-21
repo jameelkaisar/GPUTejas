@@ -21,12 +21,24 @@
 *****************************************************************************/ 
 package generic;
 
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.List;
 import java.util.Vector;
 
+import config.EnergyConfig;
+import config.SmConfig;
+
+import dram.MainMemoryDRAMController;
+
+import main.ArchitecturalComponent;
 import memorysystem.AddressCarryingEvent;
 import memorysystem.MemorySystem;
 import pipeline.GPUExecutionEngine;
 import pipeline.GPUpipeline;
+//import pipeline.multi_issue_inorder.MultiIssueInorderExecutionEngine;
 
 /**
  * represents a single core
@@ -42,15 +54,15 @@ public class SM extends SimulationElement{
 	GPUExecutionEngine execEngine;
 	public EventQueue eventQueue;
 	public int currentBlocks;
-	
 	private int tpc_number;
 	private int sm_number;
 	private long coreCyclesTaken;
 	private long noOfInstructionsExecuted;
-	
+	//TODO
+
 	private pipeline.GPUpipeline pipelineInterface;
-	
-	
+
+//	
 	public LocalClockperSm clock;
 	public SM(int tpc_number, int sm_number)
 	{
@@ -60,14 +72,15 @@ public class SM extends SimulationElement{
 		this.tpc_number = tpc_number;
 		this.sm_number = sm_number;
 		this.clock=new LocalClockperSm(tpc_number,sm_number);
+		this.clock.setStepSize(1);
 		this.currentBlocks =0;
 		this.execEngine = new GPUExecutionEngine(this);
-		this.pipelineInterface = new GPUpipeline(this, eventQueue, 0);
+		this.pipelineInterface = new GPUpipeline(this, eventQueue);
 		this.noOfInstructionsExecuted = 0;
 		
 	}
 		
-
+	
 	public EventQueue getEventQueue() {
 		return eventQueue;
 	}
@@ -76,7 +89,7 @@ public class SM extends SimulationElement{
 		eventQueue = _eventQueue;
 	}
 
-	public GPUExecutionEngine getExecEngine(int i) {
+	public GPUExecutionEngine getExecEngine() {
 		return execEngine;
 	}
 
@@ -103,13 +116,13 @@ public class SM extends SimulationElement{
 		this.noOfInstructionsExecuted++;
 	}
 
-	public pipeline.GPUpipeline getPipelineInterface(int i) {
+	public pipeline.GPUpipeline getPipelineInterface() {
 		return pipelineInterface;
 	}
 	
-	public void setInputToPipeline(int i, GenericCircularQueue<Instruction>[] inputsToPipeline)
+	public void setInputToPipeline(GenericCircularQueue<Instruction>[] inputsToPipeline)
 	{
-		this.getExecEngine(i).setInputToPipeline(inputsToPipeline);
+		this.getExecEngine().setInputToPipeline(inputsToPipeline);
 	}
 	
 	public void setStepSize(int stepSize)
@@ -140,13 +153,18 @@ public class SM extends SimulationElement{
 	@Override
 	public void handleEvent(EventQueue eventQ, Event event) 
 	{
-		if (event.getRequestType() == RequestType.Main_Mem_Read ||
-				  event.getRequestType() == RequestType.Main_Mem_Write )
+		
+		System.out.println("Handled by SM");
+		
+		if (event.getRequestType() == RequestType.Main_Mem_Read ||  event.getRequestType() == RequestType.Main_Mem_Write )
 		{
+			
 			this.handleMemoryReadWrite(eventQ,event);
+			
 		}
 		else if (event.getRequestType() == RequestType.Main_Mem_Response )
 		{
+			//System.out.println("inside sm handle event");
 			handleMainMemoryResponse(eventQ, event);
 		}
 		else 
@@ -155,22 +173,21 @@ public class SM extends SimulationElement{
 			misc.Error.showErrorAndExit(" unexpected request came to cache bank");
 		}
 	}	
+	
+	
+// FOR Main Mem Read and Write Requests Transferred to MainMemoryDRAMController
+	
+	
 	protected void handleMemoryReadWrite(EventQueue eventQ, Event event) 
     {
-    	
+		System.out.println("Handled by SM - In Function handleMemoryReadWrite");
 		//System.out.println(((AddressCarryingEvent)event).getDestinationBankId() + ""+ ((AddressCarryingEvent)event).getSourceBankId());
 		AddressCarryingEvent addrEvent = (AddressCarryingEvent) event;
-		
-
-		
-		Vector<Integer> sourceId = addrEvent.getSourceId();
+		Vector<Integer> sourceId = addrEvent.getSourceId(); 
 		Vector<Integer> destinationId = ((AddressCarryingEvent)event).getDestinationId();
-		
 		RequestType requestType = event.getRequestType();
-		MemorySystem.mainMemoryController.getPort().put(((AddressCarryingEvent)event).updateEvent(eventQ, 
-												MemorySystem.mainMemoryController.getLatencyDelay(), this, 
-												MemorySystem.mainMemoryController, requestType, sourceId,
-												destinationId));
+		
+		ArchitecturalComponent.memoryControllers.get(0).getPort().put(((AddressCarryingEvent)event).updateEvent(eventQ,ArchitecturalComponent.memoryControllers.get(0).getLatencyDelay(), this, ArchitecturalComponent.memoryControllers.get(0), requestType, sourceId, destinationId));
 
 	}
 	@SuppressWarnings("unused")
@@ -182,8 +199,87 @@ public class SM extends SimulationElement{
 
 	}
 	
-	public void activatePipeline(int i){
+	public void activatePipeline(){
 		this.pipelineInterface.resumePipeline();
 	}
 
-}
+	public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException
+	{
+		EnergyConfig totalPower = new EnergyConfig(0, 0);
+		
+		if(coreCyclesTaken == 0)
+		{
+			outputFileWriter.write("coreCyclesTaken is shown to zero\n");
+		}
+		
+		outputFileWriter.write("\n\n");
+		
+		// --------- Core Memory System -------------------------
+		EnergyConfig iCachePower =  this.execEngine.getCoreMemorySystem().getiCache().calculateAndPrintEnergy(outputFileWriter, componentName + ".iCache");
+		totalPower.add(totalPower, iCachePower);
+			
+		EnergyConfig dCachePower =  this.execEngine.getCoreMemorySystem().getConstantCache().calculateAndPrintEnergy(outputFileWriter, componentName + ".dCache");
+		totalPower.add(totalPower, dCachePower);
+			// -------- Pipeline -----------------------------------
+		EnergyConfig pipelinePower =  this.execEngine.calculateAndPrintEnergy(outputFileWriter, componentName + ".pipeline");
+		totalPower.add(totalPower, pipelinePower);
+		
+		totalPower.printEnergyStats(outputFileWriter, componentName + ".total");
+		
+		return totalPower;
+	}
+	public void sleepPipeline() {
+		// TODO Auto-generated method stub
+		//((MultiIssueInorderExecutionEngine)this.getExecEngine()).getFetchUnitIn().inputToPipeline.enqueue(Instruction.getSyncInstruction());
+	}
+
+
+	public EnergyConfig getDecodePower() {
+		return SmConfig.decodePower;
+	}
+
+		public EnergyConfig getResultsBroadcastBusPower() {
+		return SmConfig.resultsBroadcastBusPower;
+	}
+
+
+		public EnergyConfig getAllocPower() {
+			// TODO Auto-generated method stub
+			return SmConfig.AllocDeallocPower;
+		}
+
+
+		public EnergyConfig getArbiterPower() {
+			// TODO Auto-generated method stub
+			return SmConfig.ArbiterPower;
+		}
+
+
+		public EnergyConfig getCollectorPower() {
+			// TODO Auto-generated method stub
+			return SmConfig.CollectorUnitsDecodePower;
+		}
+
+
+		public EnergyConfig getDispatchPower() {
+			// TODO Auto-generated method stub
+			return SmConfig.DispatchPower;
+		}
+
+
+		public EnergyConfig getScoreboardPower() {
+			// TODO Auto-generated method stub
+			return SmConfig.ScoreBoardPower;
+		}
+
+
+		public EnergyConfig getBankPower() {
+			// TODO Auto-generated method stub
+			return SmConfig.BankPower;
+		}
+
+	
+
+
+	}
+

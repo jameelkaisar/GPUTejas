@@ -38,11 +38,12 @@ private  int riscifyInstruction(ArrayList<Instruction> instructionList,Packet p)
 try
 	{
 		PTXStaticInstructionHandler handler;
-		handler = InstructionClassTable.getInstructionClassHandler(p.insClass);
+		int register_numbers[];
+		handler = InstructionClassTable.getInstructionClassHandler(p.insClass.instructionclass);
 		
 		if(handler!=null)
 		{
-			handler.handle(p.ip,instructionList, p);
+			handler.handle(p.ip,instructionList,p);
 		}
 		else
 		{
@@ -83,6 +84,7 @@ private  String[] tokenizeObjDumpAssemblyCode(String sCurrentLine) {
 		//contains prefix 
 		instructionPrefix=lineTokenizer.nextToken();
 		operation=lineTokenizer.nextToken();
+		System.out.println(operation);
 		
 	}
 	else
@@ -102,21 +104,15 @@ private  String[] tokenizeObjDumpAssemblyCode(String sCurrentLine) {
 			EmulatorPacketList arrayListPacket, GenericCircularQueue<Instruction> inputToPipeline)
 	{
 		
-		
-		
-		 
 		Packet p = arrayListPacket.get(0);
 		ArrayList<Instruction> insList=new ArrayList<Instruction>();
 		riscifyInstruction(insList,p);
-		
-		while(!insList.isEmpty())
+	while(!insList.isEmpty())
 		{
 			Instruction tmp =insList.remove(0);
 			inputToPipeline.enqueue(tmp);
 			
-		}
-		
-		
+		}	
 	}
 	
 }

@@ -21,6 +21,9 @@
 *****************************************************************************/ 
 package generic;
 
+import memorysystem.Cache;
+import net.BusInterface;
+import main.ArchitecturalComponent;
 public abstract class SimulationElement implements Cloneable
 {
 	//a simulation element encapsulates a port.
@@ -28,6 +31,8 @@ public abstract class SimulationElement implements Cloneable
 	Port port;
 	protected long latency;
 	protected int stepSize = 1;
+	CommunicationInterface comInterface;
+
 
    public Object clone()
     {
@@ -43,23 +48,19 @@ public abstract class SimulationElement implements Cloneable
     }
 
 	
-	public SimulationElement(PortType portType,
-								int noOfPorts,
-								long occupancy,
-								long latency
-								)
+	public SimulationElement(PortType portType,	int noOfPorts,	long occupancy,long latency)
 	{
 		this.port = new Port(portType, noOfPorts, occupancy);
 		this.latency = latency;
 	}
-
-	public SimulationElement(PortType portType,
-			int noOfPorts,
-			long occupancy,
-			EventQueue eq,
-			long latency,
-			long frequency	//in MHz
-	)
+	public SimulationElement(PortType portType, 
+			int noOfPorts, long occupancy, long latency, long frequency	)
+		{
+			this.port = new Port(portType, noOfPorts, occupancy);//to be added latency in ports in gpu not present but present in tejas
+			this.latency = latency;
+		}
+	
+	public SimulationElement(PortType portType,int noOfPorts,long occupancy,EventQueue eq,long latency,long frequency)
 	{
 		this.port = new Port(portType, noOfPorts, occupancy);
 		this.latency = latency;
@@ -75,6 +76,22 @@ public abstract class SimulationElement implements Cloneable
 	{
 		return this.latency;
 	}
+	public void setComInterface(CommunicationInterface comInterface) {
+		this.comInterface = comInterface;
+	}
+	
+	public CommunicationInterface getComInterface() {
+		
+		if (comInterface==null)
+			{ 
+			System.out.println("comInterface is null");
+			//BusInterface busInterface;
+			//busInterface = new BusInterface(ArchitecturalComponent.bus);
+		//	setComInterface(busInterface);
+			}
+	
+		return comInterface;
+	}
 	
 	protected void setLatency(long latency) {
 		this.latency = latency;
@@ -89,4 +106,17 @@ public abstract class SimulationElement implements Cloneable
 		this.port = port;
 	}
 	public abstract void handleEvent(EventQueue eventQ, Event event);
+	public void sendEvent(Event event) {
+		if (event.getEventTime() != 0) {
+			misc.Error.showErrorAndExit("Send event with zero latency !!");
+		}
+
+		if (event.getProcessingElement().getComInterface() != this.getComInterface()) {
+			getComInterface().sendMessage(event);
+//			System.out.println("Message not going through bus"+event.getProcessingElement().getComInterface()+ "  "+this.getComInterface());
+		} 
+	else {
+			event.getProcessingElement().getPort().put(event);
+		}
+	}
 }

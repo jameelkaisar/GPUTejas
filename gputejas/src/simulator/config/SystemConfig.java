@@ -22,17 +22,31 @@
 package config;
 
 import java.util.Hashtable;
+import java.util.Vector;
 
 import generic.PortType;
 
 public class SystemConfig {
 	public static int NoOfTPC;
+	public static enum Interconnect {
+		Bus, Noc
+	}
+	public static Interconnect interconnect;
 	public static TpcConfig[] tpc; 
-	public static Hashtable<String, CacheConfig> declaredCaches;
+	public static Hashtable<String, CacheConfig> declaredCaches;  //private caches
+	public static Vector<CacheConfig> sharedCacheConfigs=new Vector<CacheConfig>();	 // L2 and directory 
+	
 	public static int mainMemoryLatency;
 	public static long mainMemoryFrequency;
 	public static PortType mainMemPortType;
 	public static int mainMemoryAccessPorts;
 	public static int mainMemoryPortOccupancy;
+	public static BusConfig busConfig;
+	public static NocConfig nocConfig;
+	public static MainMemoryConfig mainMemoryConfig;
 	public static int cacheBusLatency;
+	public static boolean memControllerToUse;
+	public static EnergyConfig busEnergy;
+	public static EnergyConfig  mainMemoryControllerPower;
+	public static EnergyConfig  globalClockPower;
 }

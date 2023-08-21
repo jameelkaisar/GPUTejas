@@ -48,12 +48,13 @@ then
 	echo "- - - - - - - - - - - - - - - -"
 	echo ""
 
-	echo "Enter the path of config file: "
+	echo "Enter the path of config file (absolute path): "
 	read configPath
 
-	echo "Enter the path of output file: "
+	echo "Enter the path of output file (with name): "
 	read outputFile
-
+	#configPath=gputejas/src/simulator/config/config.xml
+	#outputFile=output.txt
 	threadNum=`grep -o '<MaxNumJavaThreads>.*</MaxNumJavaThreads>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
 
 	kernels=`ls $threadNum/hashfile_* | wc -l`
@@ -77,23 +78,25 @@ then
 	echo "GENERATING THE TRACES"
 	echo "- - - - - - - - - - - - - - - -"
 	
-	if [ $# -lt 2 ];
-	then
-		echo "Please pass the benchmark path containing .o files"
-		echo "exiting..."
-		echo ""
-		exit 1
-	fi
+	# if [ $# -lt 2 ];
+	# then
+	# 	echo "Please pass the benchmark path containing .o files"
+	# 	echo "exiting..."
+	# 	echo ""
+	# 	exit 1
+	# fi
 	
 	echo ""
 	echo "-----------------Cleaning the temporary files-----------"
-    	rm *.txt *.o tmp tracegen 2>/dev/null
+	rm *.txt *.o tmp tracegen 2>/dev/null
 
 	echo "Benchmark path containing .o files : $2"
+	read bench_path
+	echo $bench_path
 	
 	echo "Enter the path of config file: "
 	read configPath
-
+	#configPath=gputejas/src/simulator/config/config.xml
 	threadNum=`grep -o '<MaxNumJavaThreads>.*</MaxNumJavaThreads>' $configPath | cut -d'<' -f 2 | cut -d'>' -f 2`
 
 	#--- removing the $threadNum directory if present
@@ -101,20 +104,23 @@ then
 	
    	echo "Please enter the arguments to run the benchmark"
    	read args	
-		
+	echo $args
+	# args=512 2 2 /home/khushal/Downloads/rodinia_2.1/data/hotspot/temp_512 /home/khushal/Downloads/rodinia_2.1/data/hotspot/power_512 output.out
+	
 	#--- Compiling Tracegen.cpp ---
+
 	echo ""
 	echo "----------Compiling Tracegen.cpp----------"
-	echo "g++-4.8 -std=c++0x Tracegen.cpp -c -I ."
+	echo "g++ -std=c++0x Tracegen.cpp -c -I ."
 	g++-4.8 -std=c++0x Tracegen.cpp -c -I .
 
-	
+	#bench_path=/home/khushal/Downloads/rodinia_2.1/cuda/hotspot
 	#--- generating tracegen executable ---
 	echo ""
 	echo "----------Generating tracegen executable----------"
-	echo "g++-4.8 -o tracegen $2/*.o Tracegen.o -locelot -ltinfo"
-	g++-4.8 -o tracegen $2/*.o Tracegen.o -locelot -ltinfo
-	
+	echo "g++ -o tracegen $2/*.o Tracegen.o -locelot -ltinfo"
+	#g++-4.8 -o tracegen $bench_path/*.o Tracegen.o -locelot -ltinfo -L/usr/lib/x86_64-linux-gnu/ -lcudart
+	g++-4.4 -o tracegen $bench_path/*.o Tracegen.o -locelot -ltinfo 
 	#--- generating traces ---
 	echo ""
 	echo "----------Generating traces----------"
@@ -135,9 +141,9 @@ then
 	#--- trace simplifier ---
 	echo ""
 	echo "----------Simplifying the traces----------"
-	echo "java -jar TraceSimplifier.jar $configPath tmp . $kernels"
+	echo "java -jar gputejas/TraceSimplifier.jar $configPath tmp . $kernels"
 
-	if !(java -jar gputejas/TraceSimplifier.jar $configPath tmp . $kernels) then
+	if !(java -jar gputejas/Tracesimplifier.jar $configPath tmp . $kernels) then
 		echo "Problem with simplifying the traces, please try again, exiting..."
 		echo ""
 		exit 1
@@ -174,13 +180,13 @@ then
 
 	
  	#--- extracting ocelot ---
-  	echo "Enter path of ocelot help files(.tar.gz): "
-  	read ocelot_path
+  	#echo "Enter path of ocelot help files(.tar.gz): "
+  	# read ocelot_path
 
-   	if !(tar -xvf $ocelot_path) then
-        	echo "Error in extracting ocelot help files, exiting..."
-        	exit 1
-   	fi
+   # 	if !(tar -xvf $ocelot_path) then
+   #      	echo "Error in extracting ocelot help files, exiting..."
+   #      	exit 1
+   # 	fi
    
        
 	#--- update repository  ---
@@ -204,9 +210,9 @@ then
 	echo ""
 	echo "-----Installing required softwares-----"
 	echo "The following softwares will be installed: "
-	echo "1. nvidia-cuda-toolkit"
+	# echo "1. nvidia-cuda-toolkit"
 	echo "2. ant"
-	echo "3. g++-4.8"
+	echo "3. g++-4.4"
 	
 	echo "Press 'y' to continue"
 	read op
@@ -219,18 +225,23 @@ then
 	fi
 
 
-	#--- install nvidia-cuda-toolkit  ---
-	echo ""
-	echo "----------Installing nvidia-cuda-toolkit----------"
+	# #--- install nvidia-cuda-toolkit  ---
+	# echo ""
+	# echo "----------Installing nvidia-cuda-toolkit----------"
 	
-	echo "sudo apt-get install nvidia-cuda-toolkit"
-	if !(sudo apt-get install nvidia-cuda-toolkit) then
-		echo "problem while installing 'nvidia-cuda-toolkit', exiting..."
-		echo ""
-		exit 1
-	fi
-
-
+	# echo "sudo apt-get install nvidia-cuda-toolkit"
+	# if !(sudo apt-get install nvidia-cuda-toolkit) then
+	# 	echo "problem while installing 'nvidia-cuda-toolkit', exiting..."
+	# 	echo ""
+	# 	exit 1
+	# fi
+	sudo apt-get remove nvidia-cuda-toolkit
+	sudo rm /usr/bin/gcc
+	sudo ln -s gcc-4.4 gcc
+	sudo cp -r cuda-toolkit/bin/ /usr/bin/ 
+	sudo cp -r cuda-toolkit/include/crt /usr/include/
+	sudo cp -r cuda-toolkit/include/*.h /usr/include/
+	sudo cp -r nvidia-cuda-toolkit/ /usr/lib/
 	#--- install ant  ---
 	echo ""
 	echo "----------Installing ant----------"
@@ -248,7 +259,7 @@ then
 	echo "----------Installing g++-4.8----------"
 	
 	echo "sudo apt-get install g++"
-	if !(sudo apt-get install g++-4.8) then
+	if !(sudo apt-get install g++-4.4) then
 		echo "sudo apt-get install python-software-properties"
 		if !(sudo apt-get install python-software-properties) then
 			exit 1
@@ -265,7 +276,7 @@ then
 		fi	
 		
 		echo "sudo apt-get install g++-4.8"
-		if !(sudo apt-get install g++-4.8) then
+		if !(sudo apt-get install g++-4.4) then
 			exit 1
 		fi
 	fi

@@ -20,6 +20,10 @@ package pipeline;
 
 	Contributors:  Seep Goel, Geetika Malhotra, Harinder Pal
 *****************************************************************************/ 
+import java.io.FileWriter;
+import java.io.IOException;
+
+import config.EnergyConfig;
 import generic.SM;
 import generic.GenericCircularQueue;
 import generic.Instruction;
@@ -73,6 +77,6 @@ public abstract class ExecutionEngine {
 	public SM getContainingCore() {
 		return containingCore;
 	}
-
+	public abstract EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException;
 
 }

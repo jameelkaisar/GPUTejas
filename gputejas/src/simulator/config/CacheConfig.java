@@ -21,6 +21,8 @@
 package config;
 
 import memorysystem.Cache.CoherenceType;
+import memorysystem.NucaCache.NucaType;
+import memorysystem.NucaCache.Mapping;
 import memorysystem.Cache;
 import generic.PortType;
 import generic.MultiPortingType;
@@ -32,19 +34,27 @@ public class CacheConfig
 	public boolean isLastLevel;
 	public String nextLevel;
 	public int blockSize;
+	public int numEntries;
 	public int assoc;
 	public int size;
 	public int latency;
 	
 	public PortType portType;
+	public NucaType nucaType;
 	public int accessPorts;
 	public int portOccupancy;
 	public MultiPortingType multiportType;
 	public CoherenceType coherence;
 	public int numberOfBuses;
 	public int busOccupancy;
+	public Mapping mapping;
+	public String cacheName;
 	public int mshrSize;
+	public CacheEnergyConfig power;
 	
+	public String nextLevelId;
+	
+	public boolean isDirectory = false;
 	
 	public static enum WritePolicy{
 		WRITE_BACK, WRITE_THROUGH

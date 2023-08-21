@@ -31,12 +31,12 @@ import generic.Instruction;
 
 public class IntegerStoreConstant implements PTXStaticInstructionHandler {
 
-	@Override
+	//@Override
 	public void handle(long instructionPointer, 
 			/*Operand operand1, Operand operand2, Operand operand3, Operand operand4, Operand operand5,*/
-			ArrayList<Instruction> instructionArrayList/*, Registers tempRegisterNum*/, Packet p ) throws InvalidInstructionException
+			ArrayList<Instruction> instructionArrayList,Packet p ) throws InvalidInstructionException
 	{
-			instructionArrayList.add(Instruction.getConstantStoreInstruction(p.MemoryAddresses));
+			instructionArrayList.add(Instruction.getConstantStoreInstruction(p.insClass.registers,p.MemoryAddresses));
 
 	}
 

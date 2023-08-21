@@ -22,6 +22,23 @@ package traceSimplification;
 
 import emulatorinterface.translator.x86.instruction.InstructionClass;
 import emulatorinterface.translator.x86.instruction.InstructionClassTable;
+import emulatorinterface.translator.x86.instruction.FullInstructionClass;
+
+import emulatorinterface.translator.x86.objparser.ObjParser;
+
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileReader;
+import java.util.Hashtable;
+import java.util.StringTokenizer;
+import java.io.FileOutputStream;
+import java.io.ObjectOutputStream;
+
+import config.SimulationConfig;
+import config.XMLParser;
+import emulatorinterface.translator.x86.instruction.InstructionClass;
+import emulatorinterface.translator.x86.instruction.InstructionClassTable;
 import emulatorinterface.translator.x86.objparser.ObjParser;
 
 import java.io.BufferedReader;
@@ -36,13 +53,14 @@ import java.io.ObjectOutputStream;
 import config.SimulationConfig;
 import config.XMLParser;
 
+@SuppressWarnings("unused")
 public class TraceSimplifier {
 	
 	public static int totalNumKernels;
 	public static BufferedReader  inputBufferedReader;
 	public static FileOutputStream fos[];
     public static DataOutputStream dos[];
-	private static Hashtable<Integer, InstructionClass> kernelInstructionsTable[];
+	private static Hashtable<Integer, FullInstructionClass> kernelInstructionsTable[];
 	public static int TYPE_BRANCH = 0;
 	public static int TYPE_MEM = 1;
 	public static int TYPE_IP = 2;
@@ -60,7 +78,7 @@ public class TraceSimplifier {
 		 * 1. loop over each file for every kernel
 		 * 2. read all the blocks and create a hashtable (ip,instruction) 
 		 * 3. create a stream of ips of every block
-		 * 4. write temporary files for ip stream and hashtable for eevry kernel
+		 * 4. write temporary files for ip stream and hashtable for every kernel
 		 * 5. repeat for other kernels
 		 * 
 		 */
@@ -74,9 +92,10 @@ public class TraceSimplifier {
 	    dos=new DataOutputStream[totalNumKernels];
 		kernelInstructionsTable= new Hashtable[totalNumKernels];
 		InstructionClassTable.createInstructionClassTable();
+		InstructionClassTable.createRegisterTable();
 		String inputLine=new String();
 		for(int i=0;i<totalNumKernels;i++)
-			kernelInstructionsTable[i] = new Hashtable<Integer, InstructionClass>();
+			kernelInstructionsTable[i] = new Hashtable<Integer, FullInstructionClass>();
 		
 		int curKernel=-1;
 		
@@ -125,7 +144,7 @@ public class TraceSimplifier {
 						String instructionPrefix = null;
 						String operation;
 						StringTokenizer lineTokenizer=new StringTokenizer(sCurrentLine,"\t,;{}");
-						
+						StringTokenizer temp=new StringTokenizer(sCurrentLine,"\t,;{}");
 						if(sCurrentLine.startsWith("@"))
 						{
 							//contains prefix 
@@ -157,7 +176,36 @@ public class TraceSimplifier {
 						}
 						InstructionClass instructionClass;
 						instructionClass = InstructionClassTable.getInstructionClass(operation,floatingOperation);
-
+						FullInstructionClass fullinstructionclass;
+						int NoofRegisters=0;
+						while(lineTokenizer.hasMoreTokens())
+						{String news=(lineTokenizer.nextToken());
+						if(news.startsWith("%r") || news.startsWith("[%r"))
+							NoofRegisters++;
+						}
+//						System.out.println(temp.countTokens());
+						temp.nextToken();
+						if(NoofRegisters!=0){
+//						System.out.println("No of registers are not 0");
+						int registers[]=new int[NoofRegisters];
+						int i=0;
+						while(temp.hasMoreTokens())
+						{	String news=(temp.nextToken());
+//						
+						if(news.startsWith("%r") || news.startsWith("[%r"))
+							{registers[i]=Integer.parseInt(news.replaceAll("[\\D]", ""));
+//							System.out.println(news);
+//							System.out.println(registers[i]);
+							i++;
+							}
+						}
+						fullinstructionclass=new FullInstructionClass(instructionClass, registers);
+						
+						}
+						else
+							fullinstructionclass=new FullInstructionClass(instructionClass, null);
+//						System.out.println("No of registers are not 0");
+						// Add registers parsing here for changing the instructionclass files 
 						dos[curKernel].writeInt(ip);
 						blockLength+=String.valueOf(ip).length();
 						
@@ -172,7 +220,8 @@ public class TraceSimplifier {
 								int bit =0;
 								while(stringTokenizer.hasMoreTokens())		
 								{
-									MemoryAddresses[bit] = Long.parseLong(stringTokenizer.nextToken());
+									MemoryAddresses[bit] = Long.parseLong(stringTokenizer.nextToken().trim());
+//									System.out.println(MemoryAddresses[bit]);
 									dos[curKernel].writeLong(MemoryAddresses[bit]);
 									blockLength+=String.valueOf("&"+MemoryAddresses[bit]).length();
 									bit++;
@@ -184,7 +233,7 @@ public class TraceSimplifier {
 						dos[curKernel].flush();
 						blockLength+=1;		
 				
-						kernelInstructionsTable[curKernel].put(ip, instructionClass);
+						kernelInstructionsTable[curKernel].put(ip, fullinstructionclass);
 
 						totalIns++;
 					}
@@ -201,19 +250,19 @@ public class TraceSimplifier {
 				}
 				
 			}
-				
 				for(int i=0;i<totalNumKernels;i++)
 				{
 					dos[i].close();
 					fos[i].close();
 				}	
 				inputBufferedReader.close();					
-
+				System.out.println("reached here");
 		for(int i=0;i<totalNumKernels;i++)
 		{
 			FileOutputStream fos = new FileOutputStream(traceFileFolder+"/hashfile"+ "_" + i);
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
 			oos.writeObject(kernelInstructionsTable[i]);
+			System.out.println("serializing java object");
 			oos.close();
 		}
 	

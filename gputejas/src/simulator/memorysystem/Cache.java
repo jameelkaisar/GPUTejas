@@ -21,24 +21,47 @@
 *****************************************************************************/ 
 package memorysystem;
 
-import java.util.*;
+import generic.CommunicationInterface;
+import generic.Event;
+import generic.EventQueue;
+import generic.GlobalClock;
+import generic.PortType;
+import generic.RequestType;
+import generic.SM;
+import generic.SimulationElement;
+
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.TreeSet;
+import java.util.Vector;
+
+import net.NocInterface;
 
 import main.ArchitecturalComponent;
 import memorysystem.directory.CentralizedDirectoryCache;
+import memorysystem.NucaCache;
+import memorysystem.NucaCache.NucaType;
 import misc.Util;
 import config.CacheConfig;
 import config.CacheConfig.WritePolicy;
+import config.CacheEnergyConfig;
+import config.EnergyConfig;
 import config.SimulationConfig;
-import generic.*;
+import config.SystemConfig;
+import dram.MainMemoryDRAMController;
 
 public class Cache extends SimulationElement
 {
 		public static enum CacheType{
 			L1,
 			iCache,
+			dCache,
 			constantCache,
 			sharedCache,
 			Lower,
+			L2,
 			Directory
 		}
 		
@@ -50,7 +73,7 @@ public class Cache extends SimulationElement
 		}
 
 		public static String trafficToNextLevel;
-		
+		CacheEnergyConfig energy;
 		/* cache parameters */
 		public SMMemorySystem containingMemSys;
 		protected int blockSize; // in bytes
@@ -75,8 +98,17 @@ public class Cache extends SimulationElement
 		public ArrayList<Cache> prevLevel = new ArrayList<Cache>(); //Points towards the previous level in the cache hierarchy
 		public Cache nextLevel; //Points towards the next level in the cache hierarchy
 		protected CacheLine lines[];
+		public NucaType nucaType;
+		public CacheConfig cacheConfig;
 		
 		public MissStatusHoldingRegister missStatusHoldingRegister;
+		public String cacheName;
+		public int id;
+		
+		public void createLinkToNextLevelCache(Cache nextLevelCache) {
+			this.nextLevel = nextLevelCache;
+			this.nextLevel.prevLevel.add(this);
+		}
 		
 		public long noOfRequests;
 		public long noOfAccesses;
@@ -89,14 +121,27 @@ public class Cache extends SimulationElement
 		public long evictions;
 		public boolean debug =false;
 		
-		public Cache(CacheConfig cacheParameters, SMMemorySystem containingMemSys)
+		public Cache(String cacheName, int id, CacheConfig cacheParameters, SMMemorySystem containingMemSys)
 		{
 			super(cacheParameters.portType,
 					cacheParameters.getAccessPorts(), 
 					cacheParameters.getPortOccupancy(),
 					cacheParameters.getLatency());
-			this.containingMemSys = containingMemSys;
 			
+			MemorySystem.addToCacheList(cacheName, this);
+				
+				if(containingMemSys==null) {
+					ArchitecturalComponent.sharedCaches.add(this);
+				}
+				
+				ArchitecturalComponent.caches.add(this);
+				
+				this.writePolicy = cacheParameters.getWritePolicy();
+
+		    this.cacheName = cacheName;
+		    this.id = id;
+			
+			this.containingMemSys = containingMemSys;
 			// set the parameters
 			this.blockSize = cacheParameters.getBlockSize();
 			this.assoc = cacheParameters.getAssoc();
@@ -106,6 +151,7 @@ public class Cache extends SimulationElement
 			this.numLines = getNumLines();
 			this.numLinesBits = Util.logbase2(numLines);
 			this.numSetsBits = numLinesBits - assocBits;
+			this.cacheConfig = cacheParameters;
 	
 			this.writePolicy = cacheParameters.getWritePolicy();
 			this.levelFromTop = cacheParameters.getLevelFromTop();
@@ -113,7 +159,7 @@ public class Cache extends SimulationElement
 			this.nextLevelName = cacheParameters.getNextLevel();
 			this.coherence = cacheParameters.getCoherence();
 			this.numberOfBuses = cacheParameters.getNumberOfBuses();
-			
+			this.energy=cacheParameters.power;
 			this.timestamp = 0;
 			this.numLinesMask = numLines - 1;
 			this.noOfRequests = 0;
@@ -141,10 +187,7 @@ public class Cache extends SimulationElement
 				int mshrSize
 				)
 		{
-			super(PortType.FirstComeFirstServe,
-					2, 
-					2,
-					2);
+			super(PortType.FirstComeFirstServe,	2,2,2);
 			
 			// set the parameters
 			this.blockSize = blockSize;
@@ -229,47 +272,43 @@ public class Cache extends SimulationElement
 		private boolean printCacheDebugMessages = false;
 		public void handleEvent(EventQueue eventQ, Event event)
 		{
-			// Sanity check for iCache
-			if(this.levelFromTop==CacheType.iCache && event.getRequestType()==RequestType.Cache_Read && ((AddressCarryingEvent)event).getAddress()==-1) {
-				misc.Error.showErrorAndExit("iCache is getting request for invalid ip : -1");
-			}
 			
-			if(printCacheDebugMessages==true) {
-				if(event.getClass()==AddressCarryingEvent.class)
-				{
-					System.out.println("CACHE : globalTime = " + ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime() +
-						"\teventTime = " + event.getEventTime() + "\t" + event.getRequestType() +
-						"\trequestingElelement = " + event.getRequestingElement() +
-						"\taddress = " + ((AddressCarryingEvent)event).getAddress() +
-						"\t" + this);
-				}
-			}
-			
-			if(this.levelFromTop == CacheType.L1 || this.levelFromTop == CacheType.iCache)
-			{
-			}
-			
-			if (event.getRequestType() == RequestType.Cache_Read
-					|| event.getRequestType() == RequestType.Cache_Write)
+//			// Sanity check for iCache
+//			if(this.levelFromTop==CacheType.iCache && event.getRequestType()==RequestType.Cache_Read && ((AddressCarryingEvent)event).getAddress()==-1) {
+//				misc.Error.showErrorAndExit("iCache is getting request for invalid ip : -1");
+//			}
+//			
+//			if(printCacheDebugMessages==true) {
+//				if(event.getClass()==AddressCarryingEvent.class)
+//				{
+//				System.out.println("CACHE : globalTime = " + ArchitecturalComponent.getCores()[event.tpcId][event.smId].clock.getCurrentTime() +
+//					"\teventTime = " + event.getEventTime() + "\t" + event.getRequestType() +
+//					"\trequestingElelement = " + event.getRequestingElement() +
+//					"\taddress = " + ((AddressCarryingEvent)event).getAddress() +
+//					"\t" + this);
+//				}
+//			}
+//			
+//			if(this.levelFromTop == CacheType.L1 || this.levelFromTop == CacheType.iCache)
+//			{
+//			}
+//			System.out.println("Handle Event Cache Please");
+			if (event.getRequestType() == RequestType.Cache_Read || event.getRequestType() == RequestType.Cache_Write)
 			{
 				this.handleAccess(eventQ, (AddressCarryingEvent) event);
-				
-				// Only for read/write we should send the request to the working set.
-				// All other events like mem_response, etc do not count as an access 
-				// for the working set
 				long address = ((AddressCarryingEvent) event).getAddress();
-				this.addToWorkingSet(address);
+				this.addToWorkingSet(address); //only read and write count as working set
 			}
 			
-			else if (event.getRequestType() == RequestType.Cache_Read_Writeback
-					|| event.getRequestType() == RequestType.Send_Mem_Response 
+			else if (event.getRequestType() == RequestType.Cache_Read_Writeback|| event.getRequestType() == RequestType.Send_Mem_Response 
 					|| event.getRequestType() == RequestType.Send_Mem_Response_Invalidate) 
 			{
 				this.handleAccessWithDirectoryUpdates(eventQ, (AddressCarryingEvent) event);
 			}
 			
 			else if (event.getRequestType() == RequestType.Mem_Response)
-			{
+			{ 
+//				System.out.println("request type Mem response");
 				this.handleMemResponse(eventQ, event);
 			}
 			
@@ -290,40 +329,161 @@ public class Cache extends SimulationElement
 				}
 			}
 		}
-		
+		public void sendAcknowledgement(AddressCarryingEvent event) {
+			RequestType returnType = null;
+			if(event.getRequestType()==RequestType.Cache_Read) {
+				returnType = RequestType.Mem_Response;
+			} else {
+				misc.Error.showErrorAndExit("sendAcknowledgement is meant for cache read operation only : " + event);
+			}
+			
+			AddressCarryingEvent memResponseEvent = new AddressCarryingEvent(
+					event.getEventQ(), 0, event.getProcessingElement(),
+					event.getRequestingElement(), returnType,
+					event.getAddress());
+			
+			sendEvent(memResponseEvent);
+			noOfResponsesSent++;
+
+		}
+		protected void cacheHit(long addr, RequestType requestType, CacheLine cl,
+				AddressCarryingEvent event) {
+			hits++;
+			noOfRequests++;
+//			System.out.println("eventsTobeServed for "+containingMemSys.tpc_id);
+//			System.out.println("Cache hit here");
+			noOfAccesses++;
+			
+			if (requestType == RequestType.Cache_Read) {
+				sendAcknowledgement(event);
+			} else if (requestType == RequestType.Cache_Write) {
+				if(this.writePolicy == WritePolicy.WRITE_THROUGH) {
+					sendRequestToNextLevel(addr, RequestType.Cache_Write, event.tpcId, event.smId);
+				}
+				
+				if( (cl.getState() == MESI.SHARED || cl.getState() == MESI.EXCLUSIVE)) {
+					//handleCleanToModified(addr, event);
+				}
+			} else {
+				misc.Error.showErrorAndExit("cache hit unknown event type\n" + event + "\ncache : " + this);
+			}
+		}
 		public void handleAccess(EventQueue eventQ, AddressCarryingEvent event)
 		{
+//			System.out.println("Cache Calls"+event.tpcId+", "+event.smId+" ");
+			long address = event.getAddress();
+			
+			
 			if(event.getRequestType() == RequestType.Cache_Write)
 			{
+				
 				noOfWritesReceived++;
 			}
 			
 			RequestType requestType = event.getRequestType();
-			long address = event.getAddress();
+			
 			
 			CacheLine cl = this.processRequest(requestType, address, event);
-
+			this.noOfAccesses++;
+			
 			if (cl != null || missStatusHoldingRegister.containsWriteOfEvictedLine(address) )
 			{
+				this.hits++;
 				processBlockAvailable(event);				
 			}
 			else
 			{	
-				if(this.coherence == CoherenceType.Directory 
-						&& event.getRequestType() == RequestType.Cache_Write)
+				
+				if(this.coherence == CoherenceType.Directory && event.getRequestType() == RequestType.Cache_Write)
 				{
 					writeMissUpdateDirectory(event.tpcId, event.smId, ( address>>> blockSizeBits ), event, address);
 				}
-				else if(this.coherence == CoherenceType.Directory 
-						&& event.getRequestType() == RequestType.Cache_Read )
+				else if(this.coherence == CoherenceType.Directory && event.getRequestType() == RequestType.Cache_Read )
 				{
 					readMissUpdateDirectory(event.tpcId, event.smId,( address>>> blockSizeBits ), event, address);
 				} 
 				else 
 				{
-	
-					sendReadRequest(event);
+					this.misses++;				
+					sendRequestToNextLevel(address, RequestType.Cache_Read, event.tpcId,event.smId );
 				}
+			
+			missStatusHoldingRegister.addOutstandingRequest(event);	
+			}
+			
+		}
+		public void sendRequestToNextLevel(long addr, RequestType requestType, int tpcId, int smId) {
+			if(this.isLastLevel==true)
+			{
+				ArchitecturalComponent.tomemory++;
+				AddressCarryingEvent event = null;
+			//event = new AddressCarryingEvent(getEventQueue(), 0, this, c,	requestType, addr);
+			//addEventAtLowerCache(event, c);
+			SM core0 = ArchitecturalComponent.getCores()[0][0];
+	
+			MainMemoryDRAMController memController;
+		CommunicationInterface ComInterface = getComInterface();
+			//System.out.println(ComInterface + " "+levelFromTop);
+		memController = getComInterface().getNearestMemoryController();	
+//				}
+
+		event = new AddressCarryingEvent(core0.getEventQueue(), 0, this,memController, requestType, addr, tpcId, smId);
+		sendEvent(event);
+			}
+			
+	else {	
+		
+		Cache c = this.nextLevel;
+		//System.out.println(this.nextLevel);
+		//System.out.println(c.toString());
+		AddressCarryingEvent event = null;
+		
+		if (c != null) {
+			
+			if(c.nucaType!=null)
+				{
+					if(c.nucaType != NucaType.NONE)
+					{
+				
+						NucaCache nuca = ArchitecturalComponent.nucaList.get("L2");//FIXME: dont use static L2
+						c = nuca.getSNucaBank(addr);
+					}
+			}
+			event = new AddressCarryingEvent(c.getEventQueue(), 0, this, c,	requestType, addr);
+			addEventAtLowerCache(event, c);
+				}
+		}
+	}
+		
+		
+		
+public boolean isBusy() {
+			return missStatusHoldingRegister.isFull();
+		}
+	
+
+public boolean addEventAtLowerCache(AddressCarryingEvent event, Cache c) {
+		if (c.isBusy() == false) {
+			sendEvent(event);
+//			c.workingSetUpdate();
+			return true;
+		} else {
+			// Slight approximation used. MSHR full is a rare event.
+			// On occurrence of such events, we just add this event to the pending events list of the lower level cache.
+			// The network congestion and the port occupancy of the next level is not modelled in such cases.
+			// It must be noted that the MSHR full event of the first level caches is being modelled correctly.
+			// This approximation applies only to non-firstlevel caches.
+			c.eventsWaitingOnMSHR.add(event);
+			return false;
+		}
+	}
+
+	public LinkedList<AddressCarryingEvent> eventsWaitingOnMSHR = new LinkedList<AddressCarryingEvent>(); 
+		public EventQueue getEventQueue() {
+			if (containingMemSys != null) {
+				return containingMemSys.getSM().eventQueue;
+			} else {
+				return (ArchitecturalComponent.getCores()[0])[0].eventQueue;
 			}
 		}
 
@@ -334,7 +494,7 @@ public class Cache extends SimulationElement
 			{
 				if (this.isLastLevel)
 				{
-					putEventToPort(event, MemorySystem.mainMemoryController, RequestType.Main_Mem_Write, true, true);
+					putEventToPort(event, ArchitecturalComponent.memoryControllers.get(0), RequestType.Main_Mem_Write, true, true);
 				}
 				else
 				{
@@ -406,20 +566,19 @@ public class Cache extends SimulationElement
 			}			
 		}		
 
-		private void sendReadRequest(AddressCarryingEvent receivedEvent)
-		{
-			if(this.isLastLevel)
-			{
-				sendReadRequestToMainMemory(receivedEvent);
-			} 
-			else
-			{
-				sendReadRequestToLowerCache(receivedEvent);
-			}			
-		}
-		
-		/*
-		 * forward memory request to next level
+//		private void sendReadRequest(AddressCarryingEvent receivedEvent)
+//		{
+//			if(this.isLastLevel)
+//			{
+//				sendReadRequestToMainMemory(receivedEvent);
+//			} 
+//			else
+//			{
+//				sendReadRequestToLowerCache(receivedEvent);
+//			}			
+//		}
+//		
+		/* forward memory request to next level
 		 * handle related lower level mshr scenarios
 		 */
 		public void sendWriteRequestToLowerCache(AddressCarryingEvent receivedEvent)
@@ -455,31 +614,23 @@ public class Cache extends SimulationElement
 				missStatusHoldingRegister.handleLowerMshrFull(receivedEvent);
 			}
 		}
-		
+
 		private void sendWriteRequestToMainMemory(AddressCarryingEvent receivedEvent)
 		{
-			receivedEvent.update(receivedEvent.getEventQ(),
-					MemorySystem.mainMemoryController.getLatency(),
-					this,
-					MemorySystem.mainMemoryController,
-					RequestType.Main_Mem_Write);
+//			System.out.println("Was earlier calling through here");
+			receivedEvent.update(receivedEvent.getEventQ(),ArchitecturalComponent.memoryControllers.get(0).getLatency(),this,ArchitecturalComponent.memoryControllers.get(0),	RequestType.Main_Mem_Write);
 
-			MemorySystem.mainMemoryController.getPort().put(receivedEvent);
+			ArchitecturalComponent.memoryControllers.get(0).getPort().put(receivedEvent);
 		}
 		
 		private void sendReadRequestToMainMemory(AddressCarryingEvent receivedEvent)
-		{
-			receivedEvent.update(receivedEvent.getEventQ(),
-					MemorySystem.mainMemoryController.getLatency(),
-					this,
-					MemorySystem.mainMemoryController,
-					RequestType.Main_Mem_Read);
+		{ 
+		//	System.out.println("Was earlier calling through here");
+			receivedEvent.update(receivedEvent.getEventQ(),ArchitecturalComponent.memoryControllers.get(0).getLatency(),this,
+                                ArchitecturalComponent.memoryControllers.get(0),receivedEvent.getRequestType());
 
-			MemorySystem.mainMemoryController.getPort().put(receivedEvent);
+			ArchitecturalComponent.memoryControllers.get(0).getPort().put(receivedEvent);
 		}
-		
-		
-		
 		protected void sendResponseToWaitingEvent(ArrayList<AddressCarryingEvent> outstandingRequestList)
 		{
 			int numberOfWrites = 0;
@@ -497,8 +648,10 @@ public class Cache extends SimulationElement
 					if (this.writePolicy == CacheConfig.WritePolicy.WRITE_THROUGH)
 						{
 								if (this.isLastLevel)
-								{
-									putEventToPort(eventPoppedOut,eventPoppedOut.getRequestingElement(), RequestType.Main_Mem_Write, true,true);
+								{	//System.out.println(eventPoppedOut.getRequestingElement());
+//									putEventToPort(eventPoppedOut,eventPoppedOut.getRequestingElement(), RequestType.Main_Mem_Write, true,true);
+									long addr=eventPoppedOut.getAddress();
+									sendRequestToNextLevel(addr, eventPoppedOut.getRequestType(), eventPoppedOut.tpcId, eventPoppedOut.smId);
 								}
 								else if (this.coherence == CoherenceType.None)
 								{
@@ -537,11 +690,6 @@ public class Cache extends SimulationElement
 		@SuppressWarnings("unused")
 		public boolean addEvent(AddressCarryingEvent addressEvent)
 		{	
-			if(missStatusHoldingRegister.isFull())
-			{
-				return false;
-			}
-			
 			// Clear the working set data after every x instructions
 			if(this.containingMemSys!=null && this.workingSet!=null) {
 				
@@ -565,6 +713,7 @@ public class Cache extends SimulationElement
 			
 			long address = addressEvent.getAddress();
 			boolean entryCreated = missStatusHoldingRegister.addOutstandingRequest(addressEvent);
+//			System.out.println("entry Created here");
 			if(entryCreated)
 			{
 				this.getPort().put(addressEvent);
@@ -581,10 +730,11 @@ public class Cache extends SimulationElement
 			long addr = ((AddressCarryingEvent)(event)).getAddress();
 			
 			ArrayList<AddressCarryingEvent> eventsToBeServed = missStatusHoldingRegister.removeRequestsByAddress((AddressCarryingEvent)event);
-			
-			misses += eventsToBeServed.size();			
+			if(eventsToBeServed!=null)
+			{misses += eventsToBeServed.size();			
 			noOfRequests += eventsToBeServed.size();
-			noOfAccesses+=eventsToBeServed.size() + 1;
+//			System.out.println("eventsTobeServed for "+containingMemSys.tpc_id);
+			noOfAccesses+=eventsToBeServed.size() + 1;}
 			CacheLine evictedLine = this.fill(addr, stateToSet);
 			
 			//This does not ensure inclusiveness
@@ -604,17 +754,15 @@ public class Cache extends SimulationElement
 							evictionUpdateDirectory(requestingCore,evictedLine.getTag(),event,address);
 					}
 					else if (this.isLastLevel)
-					{
-							putEventToPort(event, MemorySystem.mainMemoryController, RequestType.Main_Mem_Write, false,true);
+					{	
+						sendRequestToNextLevel(addr, event.getRequestType(), event.tpcId, event.smId);
+					//	putEventToPort(event, ArchitecturalComponent.memoryControllers.get(0), RequestType.Main_Mem_Write, false,true);
+						
 					}
 					else
 					{
-						AddressCarryingEvent eventToForward = new AddressCarryingEvent(event.getEventQ(),
-																					   this.nextLevel.getLatency(), 
-																					   this,
-																					   this.nextLevel, 
-																					   RequestType.Cache_Write, 
-																					   evictedLine.getAddress(),
+						AddressCarryingEvent eventToForward = new AddressCarryingEvent(event.getEventQ(), this.nextLevel.getLatency(), this,  this.nextLevel, 
+																					   RequestType.Cache_Write,  evictedLine.getAddress(),
 																					   event.tpcId, event.smId);
 						propogateWrite(eventToForward);
 					}
@@ -625,6 +773,7 @@ public class Cache extends SimulationElement
 				AddressCarryingEvent addrEvent = (AddressCarryingEvent) event;
 				memResponseUpdateDirectory(addrEvent.tpcId, addrEvent.smId,addrEvent.getAddress() >>> blockSizeBits, addrEvent, addrEvent.getAddress());
 			}
+		if(eventsToBeServed!=null)
 			sendResponseToWaitingEvent(eventsToBeServed);
 		}
 		
@@ -652,14 +801,57 @@ public class Cache extends SimulationElement
 				noOfWritesForwarded++;
 			}
 		}
+		public static int findChannelNumber(long physicalAddress){
+			long tempA,tempB;
+			int channelBits = log2(SystemConfig.mainMemoryConfig.numChans);
+			
+			int DataBusBytesOffest = log2(SystemConfig.mainMemoryConfig.DATA_BUS_BYTES);		//for 64 bit bus -> 8 bytes -> lower 3 bits of address irrelevant
+			
+			int ColBytesOffset = log2(SystemConfig.mainMemoryConfig.BL);		
+			//these are the bits we need to throw away because of "bursts". The column address is incremented internally on bursts
+			//So for a burst length of 4, 8 bytes of data are transferred on each burst
+			//Each consecutive 8 byte chunk comes for the "next" column
+			//So we traverse 4 columns in 1 request. Thus the lower log2(4) bits become irrelevant for us. Throw them away
+			//Finally we get 8 bytes * 4 = 32 bytes of data for a 64 bit data bus and BL = 4.
+			//This is equal to a cache line
+			
+			//For clarity
+			//Throw away bits to account for data bus size in bytes
+			//and for burst length
+			physicalAddress >>>= (DataBusBytesOffest + ColBytesOffset); 		//using >>> for unsigned right shift
+			//System.out.println("Shifted address by " + (DataBusBytesOffest + ColBytesOffset) + " bits");
+					
+					
+			//By the same logic, need to remove the burst-related column bits from the column bit width to be decoded
+			//colEffectiveBits = colBits - ColBytesOffset;
+		
+			//row:rank:bank:col:chan
+			
+			tempA = physicalAddress;
+			physicalAddress = physicalAddress >>> channelBits;			//always unsigned shifting
+			tempB = physicalAddress << channelBits;
+			//System.out.println("Shifted address by " + rankBits + " bits");
+			int decodedChan = (int) (tempA ^ tempB);
+			return decodedChan;
+		}
+		
+		public static int log2(int a)
+		{
+			return (int) (Math.log(a)/Math.log(2));
+		}
+
 		
 		private void processBlockAvailable(AddressCarryingEvent event)
 		{
 			ArrayList<AddressCarryingEvent> eventsToBeServed = missStatusHoldingRegister.removeRequestsByAddress(event);
+			if(eventsToBeServed!=null)
+			{
+//			System.out.println("MSHR List turns empty!!");
 			hits += eventsToBeServed.size();
 			noOfRequests += eventsToBeServed.size();
+//			System.out.println("eventsTobeServed for "+containingMemSys.tpc_id);
 			noOfAccesses+=eventsToBeServed.size();
-			sendResponseToWaitingEvent(eventsToBeServed);
+			sendResponseToWaitingEvent(eventsToBeServed);}
 		}
 		
 		public void sendMemResponse(AddressCarryingEvent eventToRespondTo)
@@ -700,11 +892,8 @@ public class Cache extends SimulationElement
 		public void sendMemResponseDirectory(AddressCarryingEvent eventToRespondTo)
 		{
 			eventToRespondTo.getRequestingElement().getPort().put(
-										eventToRespondTo.update(
-												eventToRespondTo.getEventQ(),
-												MemorySystem.getDirectoryCache().getNetworkDelay(),
-												eventToRespondTo.getProcessingElement(),
-												eventToRespondTo.getRequestingElement(),
+										eventToRespondTo.update(eventToRespondTo.getEventQ(),MemorySystem.getDirectoryCache().getNetworkDelay(),
+												eventToRespondTo.getProcessingElement(),eventToRespondTo.getRequestingElement(),
 												RequestType.Mem_Response));
 		}
 		
@@ -718,13 +907,7 @@ public class Cache extends SimulationElement
 				eventTime = 1;
 			}
 			if(flag){
-				simElement.getPort().put(
-						event.update(
-								event.getEventQ(),
-								eventTime,
-								this,
-								simElement,
-								requestType));
+				simElement.getPort().put(event.update(event.getEventQ(),eventTime,this,simElement,requestType));
 				return null;
 			} else {
 				AddressCarryingEvent addressEvent = 	new AddressCarryingEvent( 	event.getEventQ(),eventTime, this,
@@ -962,9 +1145,10 @@ simElement, requestType,((AddressCarryingEvent)event).getAddress(),((AddressCarr
 				if(cl.getState()!=MESI.MODIFIED) {
 					
 					cl.setState(MESI.MODIFIED);
-					
+					//System.out.println(this.coherence);
 					// Send request to lower cache.
-					if(this.coherence==CoherenceType.None && this.isLastLevel==false) {
+					if(this.coherence==CoherenceType.None) {
+						
 						AddressCarryingEvent newEvent  = (AddressCarryingEvent)event.clone();
 						newEvent.setAddress(addr);
 						sendWriteRequest(newEvent);
@@ -1049,6 +1233,7 @@ simElement, requestType,((AddressCarryingEvent)event).getAddress(),((AddressCarr
 	
 		public CacheLine processRequest(RequestType requestType, long addr, Event event)
 		{
+//			System.out.println("request in processrequest of cache "+ requestType );
 			CacheLine ll = null;
 			if(requestType == RequestType.Cache_Read )  {
 				ll = this.read(addr);
@@ -1061,10 +1246,17 @@ simElement, requestType,((AddressCarryingEvent)event).getAddress(),((AddressCarr
 		public void populateConnectedMSHR()
 		{
 			//if mode3
-			//((Mode3MSHR)(missStatusHoldingRegister)).populateConnectedMSHR(this.prevLevel);
+//			((Mode3MSHR)(missStatusHoldingRegister)).populateConnectedMSHR(this.prevLevel);
 		}
 		
-		
+		public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter,
+				String componentName) throws IOException {
+			EnergyConfig newPower = new EnergyConfig(energy.leakageEnergy,
+					energy.readDynamicEnergy);
+			EnergyConfig cachePower = new EnergyConfig(newPower, noOfAccesses);
+			cachePower.printEnergyStats(outputFileWriter, componentName);
+			return cachePower;
+		}
 		//getters and setters
 		public MissStatusHoldingRegister getMissStatusHoldingRegister() {
 			return missStatusHoldingRegister;

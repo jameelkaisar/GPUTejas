@@ -20,6 +20,12 @@ package memorysystem;
 
 	Contributors:  Seep Goel, Geetika Malhotra, Harinder Pal
 *****************************************************************************/ 
+import java.io.FileWriter;
+import java.io.IOException;
+
+import config.EnergyConfig;
+import config.SystemConfig;
+import dram.MainMemoryDRAMController;
 import generic.EventQueue;
 import generic.PortType;
 import generic.SimulationElement;
@@ -33,44 +39,27 @@ public class MainMemoryController extends SimulationElement
 	long numAccesses;
 		
 	public MainMemoryController() {
-		super(PortType.Unlimited,
-				-1, 
-				10,
-				250);
+			super(SystemConfig.mainMemPortType,	SystemConfig.mainMemoryAccessPorts,
+					SystemConfig.mainMemoryPortOccupancy,SystemConfig.mainMemoryLatency,SystemConfig.mainMemoryFrequency
+					);	
 	}
 	
-	public MainMemoryController(int[] memoryControllersLocations) 
+		public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException
 	{
-		super(PortType.Unlimited,
-				-1, 
-				10,
-				250);
-		this.numberOfMemoryControllers = memoryControllersLocations.length;
-		this.mainmemoryControllersLocations = memoryControllersLocations;
+		EnergyConfig power = new EnergyConfig(SystemConfig.mainMemoryControllerPower, numAccesses);
+		power.printEnergyStats(outputFileWriter, componentName);
+		return power;
 	}
 	
+	public EnergyConfig calculateEnergy(FileWriter outputFileWriter) throws IOException
+	{
+		EnergyConfig power = new EnergyConfig(SystemConfig.mainMemoryControllerPower, numAccesses);
+		return power;
+	}
 	public void handleEvent(EventQueue eventQ, Event event)
-	{
-		if (event.getRequestType() == RequestType.Main_Mem_Read)
-		{
-			event.getRequestingElement().getPort().put(
-						event.update(
-								eventQ,
-								2,//wire delay from main memory to cache
-								null,
-								event.getRequestingElement(),
-								RequestType.Mem_Response));
+	{ 
+		System.out.println("purana vaala memory controller");
 		}
-		else if (event.getRequestType() == RequestType.Main_Mem_Write)
-		{
-			//Just to tell the requesting things that the write is completed
-		}
-		
-		incrementNumAccesses();
-	}
 	
-	void incrementNumAccesses()
-	{
-		numAccesses += 1;
-	}
+
 }

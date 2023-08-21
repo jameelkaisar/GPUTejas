@@ -23,13 +23,30 @@
 package config;
 
 public class SmConfig {
+
 	public static int NoOfWarpSchedulers;
 	public static int NoOfSP;
 	public static SpConfig[] sp;
 	public static int WarpSize;
+	public int IntRegFileSize;
 	public static int frequency;
 	public CacheConfig iCache = new CacheConfig();
+	public CacheConfig dCache = new CacheConfig();
 	public CacheConfig constantCache = new CacheConfig();
 	public CacheConfig sharedCache = new CacheConfig();
+	public RegConfig regconfig=new RegConfig();
+	public static EnergyConfig decodePower;
+	// NOT needed if each operation power not available 
+	public static EnergyConfig intSpPower;
+	public static EnergyConfig floatSpPower;
+	public static EnergyConfig complexSpPower;
+	public static EnergyConfig resultsBroadcastBusPower;
+	///////////////////////////////////////////////////////////////////
+	public static EnergyConfig AllocDeallocPower;
+	public static EnergyConfig BankPower;
+	public static EnergyConfig ArbiterPower;
+	public static EnergyConfig CollectorUnitsDecodePower;
+	public static EnergyConfig DispatchPower;
+	public static EnergyConfig ScoreBoardPower;
 
 }

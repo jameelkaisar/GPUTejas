@@ -31,9 +31,9 @@ import generic.Instruction;
 public class IntegerAdressConvert implements PTXStaticInstructionHandler{
 	public void handle(long instructionPointer, 
 			/*Operand operand1, Operand operand2, Operand operand3, Operand operand4, Operand operand5,*/
-			ArrayList<Instruction> instructionArrayList/*, Registers tempRegisterNum*/, Packet p ) throws InvalidInstructionException
+			ArrayList<Instruction> instructionArrayList, Packet p ) throws InvalidInstructionException
 	{
-		instructionArrayList.add(Instruction.getAddressInstruction());
+		instructionArrayList.add(Instruction.getAddressInstruction(p.insClass.registers));
 		
 	}
 }

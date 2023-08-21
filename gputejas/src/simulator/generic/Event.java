@@ -38,7 +38,9 @@ public abstract class Event implements Cloneable
 	private long priority;
 	public int tpcId;
 	public int smId;
-
+//serialization and globalSerialization copied
+	public long serializationID = 0;
+	public static long globalSerializationID = 0;
 	public Event clone()
 	{
 		try {
@@ -52,7 +54,12 @@ public abstract class Event implements Cloneable
 	//Element which processes the event.
 	protected SimulationElement requestingElement;
 	protected SimulationElement processingElement;
-
+	protected SimulationElement actualRequestingElement;
+	protected SimulationElement actualProcessingElement;
+	public void incrementSerializationID() {
+		globalSerializationID++;
+		serializationID = globalSerializationID;
+	}
 	public Event(EventQueue eventQ, SimulationElement requestingElement,
 			SimulationElement processingElement, RequestType requestType) 
 	{
@@ -62,11 +69,60 @@ public abstract class Event implements Cloneable
 		this.processingElement = processingElement;
 		this.requestType = requestType;
 		this.tpcId = 0;	
-		this.smId = 0;
-		
+		this.smId = 0;		
+		this.priority = requestType.ordinal();
+	}
+	
+	
+	/*
+	 * Added by Gantavya:
+	 * I am making a special constructor in this Event class to tackle the event in the DRAM.
+	 * in the DRAM code of CPUTEJAS, i found that they are sending the core id to be equal to -1 
+	 * because that event was not having any resemblance with the core, as it was happening in the 
+	 * DRAM. So here also i am defining a constructor in which the last argument will be core id. 
+	 * Since it will be called only by the state update event of the DRAM package, thus its value will
+	 * be -1. (As in TEJAS). This -1 value will correspond to the tpcID = -1 and smID = -1.
+	 * 
+	 */
+	
+	public Event(EventQueue eventQ, long eventTime, SimulationElement requestingElement,
+			SimulationElement processingElement, RequestType requestType, int coreId) 
+	{
+		incrementSerializationID();
+		this.eventTime = eventTime; // this should be set by the port
+		this.eventQ = eventQ;
+		this.requestingElement = requestingElement;
+		this.processingElement = processingElement;
+		this.requestType = requestType;
+		this.smId = -1;
+		this.tpcId= -1;
 		this.priority = requestType.ordinal();
 	}
 
+	
+	public Event update(SimulationElement requestingElement,
+			SimulationElement processingElement, SimulationElement actualRequestingElement,
+			SimulationElement actualProcessingElement)
+	{
+		incrementSerializationID(); //copied from tejas
+		this.requestingElement = requestingElement;
+		this.processingElement = processingElement;
+		this.actualProcessingElement = actualProcessingElement;//copied from tejas
+		this.actualRequestingElement = actualRequestingElement;//copied from tejas
+		return this;
+	}
+//	public Event(EventQueue eventQ, long eventTime, SimulationElement requestingElement,
+//			SimulationElement processingElement, RequestType requestType, int coreId) 
+//	{
+//		incrementSerializationID();
+//		this.eventTime = eventTime; // this should be set by the port
+//		this.eventQ = eventQ;
+//		this.requestingElement = requestingElement;
+//		this.processingElement = processingElement;
+//		this.requestType = requestType;
+//		this.coreId = coreId;
+//		this.priority = requestType.ordinal();
+//	}
 	public Event(EventQueue eventQ, long eventTime, SimulationElement requestingElement,
 			SimulationElement processingElement, RequestType requestType, int tpcId, int smId) 
 	{
@@ -91,7 +147,29 @@ public abstract class Event implements Cloneable
 		this.priority = requestType.ordinal();
 		return this;
 	}
+	public Event update(SimulationElement requestingElement,
+			SimulationElement processingElement)
+	{
+		incrementSerializationID();
+		this.requestingElement = requestingElement;
+		this.processingElement = processingElement;
+		return this;
+	}
 
+	public SimulationElement getActualRequestingElement() {
+		return actualRequestingElement;
+	}// copied from tejas
+	
+	public SimulationElement getActualProcessingElement() {
+		return actualProcessingElement;
+	}// copied from Tejas
+	public Event update(long eventTime)
+	{
+		incrementSerializationID();
+		this.eventTime =  eventTime;
+		return this;
+	}
+	
 	public long getEventTime() {
 		return eventTime;
 	}

@@ -21,19 +21,23 @@
 *****************************************************************************/ 
 package memorysystem.directory;
 
+import java.io.FileWriter;
+import java.io.IOException;
+
 import generic.Event;
 import generic.EventQueue;
 import generic.RequestType;
 import generic.SimulationElement;
 
 import config.CacheConfig;
+import config.EnergyConfig;
 import main.ArchitecturalComponent;
 import memorysystem.AddressCarryingEvent;
 import memorysystem.Cache;
 import memorysystem.MESI;
 import memorysystem.MemorySystem;
 import memorysystem.SMMemorySystem;
-
+import dram.MainMemoryDRAMController;
 public class CentralizedDirectoryCache extends Cache 
 {
 
@@ -51,12 +55,32 @@ public class CentralizedDirectoryCache extends Cache
 	public boolean debug =false;
 	private long timestamp=0;
 	public static int networkDelay;
+	public CacheConfig cacheConfig;
 	
-	
+
+	public CentralizedDirectoryCache(CacheConfig cacheParameters, SMMemorySystem containingMemSys,
+			int networkDelay) 
+	{
+		super(cacheParameters.cacheName, 0, cacheParameters, containingMemSys);
+		
+		lines = new DirectoryEntry[cacheParameters.getSize()*1024];
+		for(int i=0;i<lines.length;i++) {
+			lines[i] = new DirectoryEntry();
+		}
+		invalidations =0;
+		writebacks =0;
+		dataForwards =0;
+		directoryHits = 0;
+		directoryMisses = 0;
+
+		this.levelFromTop = CacheType.Directory;
+		CentralizedDirectoryCache.networkDelay = networkDelay;
+		
+	}
 	public CentralizedDirectoryCache(CacheConfig cacheParameters, SMMemorySystem containingMemSys, int numCores, 
 			int networkDelay) 
 	{
-		super(cacheParameters, containingMemSys);
+		super(cacheParameters.cacheName, 0, cacheParameters, containingMemSys);
 		
 		lines = new DirectoryEntry[cacheParameters.getSize()*1024];
 		for(int i=0;i<lines.length;i++) {
@@ -507,13 +531,14 @@ public class CentralizedDirectoryCache extends Cache
 	
 	private void sendRequestToMainMemory(AddressCarryingEvent event)
 	{
-		MemorySystem.mainMemoryController.getPort().put(
+		System.out.print("send request to Main Memory"+event.getRequestingElement()+"request is "+event.getRequestType());
+		ArchitecturalComponent.memoryControllers.get(0).getPort().put(
 				new AddressCarryingEvent(
 						event.getEventQ(),
-						MemorySystem.mainMemoryController.getLatencyDelay() + getNetworkDelay(),
+						ArchitecturalComponent.memoryControllers.get(0).getLatencyDelay() + getNetworkDelay(),
 						event.getRequestingElement(), 
-						MemorySystem.mainMemoryController,
-						RequestType.Main_Mem_Read,
+						ArchitecturalComponent.memoryControllers.get(0),
+						event.getRequestType(),
 						event.getAddress(),
 						(event).tpcId, (event).smId));
 	}
@@ -641,5 +666,16 @@ public class CentralizedDirectoryCache extends Cache
 					((AddressCarryingEvent)event).getAddress(),
 					(event).tpcId, (event).smId));
 	}
-
+	public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException
+	{
+//		long numAccesses = readMissAccesses + writeHitAccesses + writeMissAccesses 
+//				+ evictedFromCoherentCacheAccesses + evictedFromSharedCacheAccesses;
+		// TODO Check what should be here ???
+		long numAccesses=numReadMiss+numWriteMiss+numWriteHit+directoryHits+directoryMisses+evictions+dataForwards+misses;
+		EnergyConfig newPower = new EnergyConfig(cacheConfig.power.leakageEnergy,
+				cacheConfig.power.readDynamicEnergy);
+		EnergyConfig power = new EnergyConfig(newPower, numAccesses);
+		power.printEnergyStats(outputFileWriter, componentName);
+		return power;
+	}	
 }

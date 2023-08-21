@@ -32,7 +32,7 @@ public class IntegerAluNoImplicitDestinationFiveOperands implements PTXStaticIns
 	public void handle(long instructionPointer, 
 			ArrayList<Instruction> instructionArrayList, Packet p ) throws InvalidInstructionException
 	{
-		instructionArrayList.add(Instruction.getIntALUInstruction());
+		instructionArrayList.add(Instruction.getIntALUInstruction(p.insClass.registers));
 		
 	}
 }

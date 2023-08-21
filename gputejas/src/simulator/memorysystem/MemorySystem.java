@@ -23,28 +23,146 @@ package memorysystem;
 
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.Map;
+
+import net.BusInterface;
+import net.ID;
+import net.NocInterface;
 
 import pipeline.GPUMemorySystem;
 import main.ArchitecturalComponent;
 import memorysystem.Cache.CacheType;
+//import memorysystem.coherence.Directory;
+//import memorysystem.coherence.Directory;
 import memorysystem.directory.CentralizedDirectoryCache;
+import memorysystem.NucaCache;
+import memorysystem.NucaCache.NucaType;
+//import memorysystem.nuca.NucaCache;
+//import memorysystem.nuca.NucaCache.NucaType;
 import generic.*;
 import config.CacheConfig;
 import config.SystemConfig;
 import config.TpcConfig;
-
+import dram.*;
 
 public class MemorySystem
 {
 	static SM[][] cores;
 	static Hashtable<String, Cache> cacheList;
-	public static MainMemoryController mainMemoryController;
+	public static Hashtable<String, Cache> cacheNameMappings = new Hashtable<String, Cache>();
+	public static MainMemoryDRAMController mainMemoryController;
+        
 	public static CentralizedDirectoryCache centralizedDirectory;
 	
 	public static Hashtable<String, Cache> getCacheList() {
 		return cacheList;
 	}
 
+	/* private static void createLinkToNextLevelCache(Cache c) {
+		String cacheName = c.cacheName;
+		int cacheId = c.id;
+		String nextLevelName = c.cacheConfig.nextLevel;
+		
+		if(nextLevelName=="" || nextLevelName==null) {
+			return;
+		}
+		
+		String nextLevelIdStrOrig = c.cacheConfig.nextLevelId;
+		
+		if(nextLevelIdStrOrig!=null && nextLevelIdStrOrig!="") {
+			int nextLevelId = getNextLevelId(cacheName, cacheId, nextLevelIdStrOrig);
+			nextLevelName += "[" + nextLevelId + "]";
+		} else {
+			nextLevelName += "[0]";
+		}
+		
+		Cache nextLevelCache = cacheNameMappings.get(nextLevelName);
+		if(nextLevelCache==null) {
+			misc.Error.showErrorAndExit("Inside " + cacheName + ".\n" +
+				"Could not find the next level cache. Name : " + nextLevelName);
+		}
+		
+		c.createLinkToNextLevelCache(nextLevelCache);		
+	}  */
+	
+	
+	public static Cache createSharedCache(String token, CommunicationInterface comInterface) {
+		for(CacheConfig config : SystemConfig.sharedCacheConfigs) {
+			
+			if(token.equals(config.cacheName)) {
+				Cache c = null;
+				if(config.nucaType != NucaType.NONE)
+				{
+					NucaCache nuca;
+					if(!ArchitecturalComponent.nucaList.containsKey(token))
+					{
+						nuca = new NucaCache(token, 0, config, null);
+						ArchitecturalComponent.nucaList.put(token, nuca);
+					}
+					else{
+						nuca = ArchitecturalComponent.nucaList.get(token);
+					}
+					c = nuca.createBanks(token, config, comInterface);
+				}
+				else{
+					c = new Cache(token+"[0]", 0, config, null);
+					
+				}
+				c.setComInterface(comInterface);
+				return c;
+			}
+		}
+		
+		misc.Error.showErrorAndExit("Unable to find a cache config for " + token);
+		return null;
+	}
+	
+	public static void createLinkBetweenCaches() {
+		for(Map.Entry<String, Cache> cacheListEntry : cacheNameMappings.entrySet()) {
+			
+			Cache c = cacheListEntry.getValue();
+			//System.out.println("the next levvel is " + c.nextLevel.cacheName);
+			
+			// If the next level field has been set in the coreMemSys, do not set it again
+			if(c.nextLevel==null) {
+				createLinkToNextLevelCache(c);
+			}
+		}
+	}
+	
+	private static void createLinkToNextLevelCache(Cache c) {
+		String cacheName = c.cacheName;
+		int cacheId = c.id;
+		String nextLevelName = c.cacheConfig.nextLevel;
+		
+		
+		if(nextLevelName=="" || nextLevelName==null) {
+			return;
+		}
+		
+		String nextLevelIdStrOrig = c.cacheConfig.nextLevelId;
+		
+		
+			nextLevelName += "[0]";
+		Cache nextLevelCache = cacheNameMappings.get(nextLevelName);
+		if(nextLevelCache==null) {
+			misc.Error.showErrorAndExit("Inside " + cacheName + ".\n" +
+				"Could not find the next level cache. Name : " + nextLevelName);
+		}
+		
+		c.createLinkToNextLevelCache(nextLevelCache);		
+	}
+	
+	
+	
+	public static void addToCacheList(String cacheName, Cache cache) {
+		if(cacheNameMappings.contains(cacheName)) {
+			misc.Error.showErrorAndExit("A cache with same name already exists !!\nCachename : " + cacheName);
+		} else {
+			cacheNameMappings.put(cacheName, cache);
+		}
+	}
+	
 	@SuppressWarnings("unused")
 	public static SMMemorySystem[][] initializeMemSys(SM[][] sms)
 	{
@@ -56,39 +174,7 @@ public class MemorySystem
 		/*First initialize the L2 and greater caches (to be linked with L1 caches and among themselves)*/
 		cacheList = new Hashtable<String, Cache>(); //Declare the hash table for level 2 or greater caches
 		boolean flag = false;
-		for (Enumeration<String> cacheNameSet = SystemConfig.declaredCaches.keys(); cacheNameSet.hasMoreElements(); )
-		{
-			String cacheName = cacheNameSet.nextElement();
-			
-			if (!(cacheList.containsKey(cacheName))) //If not already present
-			{
-				cacheParameterObj = SystemConfig.declaredCaches.get(cacheName);
-				
-				//Declare the new cache
-				Cache newCache = null;
-				newCache = new Cache(cacheParameterObj, null);
-				
-				
-				//Put the newly formed cache into the new list of caches
-				cacheList.put(cacheName, newCache);
-				
-				//add initial cachepull event
-				if(newCache.levelFromTop == CacheType.Lower)
-				{
-					ArchitecturalComponent.getCores()[0][0].getEventQueue().addEvent(
-											new CachePullEvent(
-													ArchitecturalComponent.getCores()[0][0].getEventQueue(),
-													0,
-													newCache,
-													newCache,
-													RequestType.PerformPulls,
-													-1, -1));
-				}
-			}
-		}
-		
-		mainMemoryController = new MainMemoryController();
-		//Initialize the core memory systems
+		mainMemoryController = new MainMemoryDRAMController(SystemConfig.mainMemoryConfig);
 		for (int i = 0; i < SystemConfig.NoOfTPC ; i++)
 		{
 			for(int j =0 ; j<  TpcConfig.NoOfSM; j++)
@@ -99,14 +185,17 @@ public class MemorySystem
 					smMemSys = new GPUMemorySystem(sms[i][j], k);
 			
 					smMemSysArray[i][j] = smMemSys;
+				}
+			}
+		}
 				
 					//Set the next levels of the instruction cache
-					if (smMemSys.iCache.isLastLevel == true) //If this is the last level, don't set anything
+			/*		if (smMemSys.iCache.isLastLevel == true) //If this is the last level, don't set anything
 					{
 						continue;
 					}
 				
-					String nextLevelName = smMemSys.iCache.nextLevelName;
+					String nextLevelName = "L2";
 				
 					if (nextLevelName.isEmpty())
 					{
@@ -128,10 +217,10 @@ public class MemorySystem
 				}
 				
 			}			
-		}
+		} */
 			
-			for (Enumeration<String> cacheNameSet = cacheList.keys(); cacheNameSet.hasMoreElements(); /*Nothing*/)
-			{
+	//		/*for (Enumeration<String> cacheNameSet = cacheList.keys(); cacheNameSet.hasMoreElements(); /*Nothing*/)
+		/*	{
 				String cacheName = cacheNameSet.nextElement();
 				Cache cacheToSetNextLevel = cacheList.get(cacheName);
 					
@@ -165,17 +254,20 @@ public class MemorySystem
 				}
 			}
 			
-			for (Enumeration<String> cacheNameSet = cacheList.keys(); cacheNameSet.hasMoreElements(); /*Nothing*/)
-			{
+		//	for (Enumeration<String> cacheNameSet = cacheList.keys(); cacheNameSet.hasMoreElements(); /*Nothing*/ //)
+			/*{
 				String cacheName = cacheNameSet.nextElement();
 				Cache cacheToSetConnectedMSHR = cacheList.get(cacheName);
 				cacheToSetConnectedMSHR.populateConnectedMSHR();
-			}
+			} */ 
 			
 			return smMemSysArray;
-		}
+	
+			
+	}
 		
-		
+	
+	
 		public static   CentralizedDirectoryCache getDirectoryCache()
 		{
 			return centralizedDirectory;
@@ -200,4 +292,33 @@ public class MemorySystem
 						+ cache.misses);
 			}
 		}
+		public MainMemoryDRAMController getMemoryControllerId(CommunicationInterface comInterface) {
+			
+			MainMemoryDRAMController memControllerRet = null;
+			
+			if(comInterface.getClass()==NocInterface.class) {
+				ID currBankId = ((NocInterface)comInterface).getId();
+		    	double distance = Double.MAX_VALUE;
+		    	ID memControllerId = ((NocInterface) (ArchitecturalComponent.memoryControllers.get(0).getComInterface())).getId();
+		    	int x1 = currBankId.getx();//bankid/cacheColumns;
+		    	int y1 = currBankId.gety();//bankid%cacheColumns;
+		   
+		    	for(MainMemoryDRAMController memController:ArchitecturalComponent.memoryControllers) {
+		    		int x2 = ((NocInterface)memController.getComInterface()).getId().getx();
+		    		int y2 = ((NocInterface)memController.getComInterface()).getId().gety();
+		    		double localdistance = Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
+		    		if(localdistance < distance) {
+		    			distance = localdistance;
+		    			memControllerRet = memController;
+		    			memControllerId = ((NocInterface)memController.getComInterface()).getId();
+		    		}
+		    	}
+			} else if(comInterface.getClass()==BusInterface.class) {
+				memControllerRet = ArchitecturalComponent.memoryControllers.get(0);
+			}
+	    	
+	    	return memControllerRet;
+	    }
+
+		
 	}

@@ -4,11 +4,12 @@ import java.io.Serializable;
 
 import config.SimulationConfig;
 import emulatorinterface.translator.x86.instruction.InstructionClass;
+import emulatorinterface.translator.x86.instruction.FullInstructionClass;
 
 @SuppressWarnings("serial")
 public class Packet  implements Serializable 
 {
-	public InstructionClass insClass;
+	public FullInstructionClass insClass;
 	public Integer ip;
 	public Long MemoryAddresses[];
 	
@@ -18,13 +19,13 @@ public class Packet  implements Serializable
 	}
 
 	
-	public Packet(Integer ip, InstructionClass iClass) 
+	public Packet(Integer ip, FullInstructionClass iClass) 
 	{
 		this.insClass=iClass;
 		this.ip = ip;
 	}
 	
-	public Packet(Integer ip, InstructionClass iClass, Long[] MemoryAddresses) 
+	public Packet(Integer ip, FullInstructionClass iClass, Long[] MemoryAddresses) 
 	{
 		MemoryAddresses = new Long[SimulationConfig.ThreadsPerCTA];
 		this.insClass=iClass;
@@ -34,7 +35,7 @@ public class Packet  implements Serializable
 		this.MemoryAddresses = MemoryAddresses;
 	}
 	
-	public void set(InstructionClass iClass, Integer ip,  Long[] MemoryAddresses){
+	public void set(FullInstructionClass iClass, Integer ip,  Long[] MemoryAddresses){
 		this.insClass=iClass;
 		this.ip = ip;
 		

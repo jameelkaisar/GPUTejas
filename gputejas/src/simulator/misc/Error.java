@@ -22,6 +22,7 @@
 
 package misc;
 
+import main.Main;
 import emulatorinterface.translator.InvalidInstructionException;
 
 public class Error 
@@ -34,6 +35,7 @@ public class Error
 		new Exception().printStackTrace();
 		System.exit(1);
 	}
+
 
 	public static void invalidOperand(String operandString) throws InvalidInstructionException
 	{

@@ -21,20 +21,24 @@
 *****************************************************************************/ 
 package generic;
 
-import java.util.Iterator;
-import java.util.PriorityQueue;
+import java.util.*;
+import java.util.concurrent.PriorityBlockingQueue;
 
 import main.ArchitecturalComponent;
+import dram.MainMemoryDRAMController;
+
+import main.ArchitecturalComponent;
+import memorysystem.MemorySystem;
 
 public class EventQueue 
 {
-	private PriorityQueue<Event> priorityQueue;
+	private PriorityBlockingQueue<Event> priorityQueue;
 	int tpcId, smId;
 	public EventQueue(int tpcId, int smId) 
 	{
 		this.tpcId=tpcId;
 		this.smId=smId;
-		priorityQueue = new PriorityQueue<Event>(1, new EventComparator());
+		priorityQueue = new PriorityBlockingQueue<Event>(1, new EventComparator());
 	}
 	
 	public void addEvent(Event event)
@@ -49,15 +53,15 @@ public class EventQueue
 	{
 		Event event;
 		long eventTime;
-		
 		long currentClockTime = ArchitecturalComponent.getCores()[tpcId][smId].clock.getCurrentTime();
-		
 		while(!priorityQueue.isEmpty())
 		{
+//			System.out.println("event queue size = " + priorityQueue.size());
 			eventTime = priorityQueue.peek().getEventTime();
 			if (eventTime <= currentClockTime)
 			{
-				event = priorityQueue.remove();
+			event = priorityQueue.remove();
+//				System.out.println(event.getProcessingElement()+" is req. elem. and "+event.getRequestType());
 				event.getProcessingElement().handleEvent(this, event);
 			}
 			else

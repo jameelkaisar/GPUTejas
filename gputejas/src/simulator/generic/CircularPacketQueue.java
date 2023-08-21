@@ -23,6 +23,7 @@ package generic;
 
 import emulatorinterface.communication.Packet;
 import emulatorinterface.translator.x86.instruction.InstructionClass;
+import emulatorinterface.translator.x86.instruction.FullInstructionClass;
 
 public class CircularPacketQueue {
 	int head;
@@ -41,7 +42,7 @@ public class CircularPacketQueue {
 		}
 	}
 	//returns true if enqueue succeeds
-	public boolean enqueue(InstructionClass iClass,Integer ip, Long MemoryAddresses[])
+	public boolean enqueue(FullInstructionClass iClass,Integer ip, Long MemoryAddresses[])
 	{
 		if(isFull())
 		{

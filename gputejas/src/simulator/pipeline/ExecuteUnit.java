@@ -21,6 +21,10 @@ package pipeline;
 
 	Contributors:  Seep Goel, Geetika Malhotra, Harinder Pal
 *****************************************************************************/ 
+import java.io.FileWriter;
+import java.io.IOException;
+
+import config.EnergyConfig;
 import main.ArchitecturalComponent;
 import generic.Event;
 import generic.EventQueue;
@@ -43,8 +47,9 @@ public class ExecuteUnit extends SimulationElement{
 		this. scheduleExecuteLatch = execEngine.getScheduleExecuteLatch();
 	}
 
-	public void performExecute(GPUpipeline inorderPipeline, int i)
+	public void performExecute(GPUpipeline inorderPipeline)
 	{
+//		System.out.println(scheduleExecuteLatch.isEmpty()+"execution is empty");
 		if(scheduleExecuteLatch.isEmpty() == true)
 			return;
 		Instruction ins = scheduleExecuteLatch.peek(0);
@@ -83,4 +88,13 @@ public class ExecuteUnit extends SimulationElement{
 			}
 		}
 	}
+	public EnergyConfig calculateAndPrintEnergy(FileWriter outputFileWriter, String componentName) throws IOException
+	{
+		long numResultsBroadCastBusAccess=0;
+		EnergyConfig power = new EnergyConfig(sm.getResultsBroadcastBusPower(), numResultsBroadCastBusAccess);
+		power.printEnergyStats(outputFileWriter, componentName);
+		return power;
+	}
+
 }
+

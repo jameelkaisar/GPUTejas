@@ -24,6 +24,9 @@ package generic;
 
 public enum GpuType {
 	Tesla,
-	Fermi
+	Fermi,
+	Maxwell,
+	Kepler,
+	Pascal
 
 }

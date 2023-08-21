@@ -35,6 +35,7 @@ import java.util.concurrent.Semaphore;
 
 
 import emulatorinterface.BlockState;
+import emulatorinterface.GlobalTable;
 
 import emulatorinterface.SimplerRunnableThread;
 import generic.CircularPacketQueue;
@@ -87,7 +88,8 @@ public abstract class IpcBase {
 
 	// return the total packets produced by PIN till now
 	//public abstract long totalProduced(int tidApp);
-	
+	public static GlobalTable glTable;
+
 	public abstract void errorCheck(int tidApp, long totalReads);
 
 	// Free buffers, free memory , deallocate any stuff.

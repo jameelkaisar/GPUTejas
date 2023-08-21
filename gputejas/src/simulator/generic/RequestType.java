@@ -37,6 +37,7 @@ public enum RequestType {
 	BOOT_PIPELINE,
 	BROADCAST,
 	
+	Column_Read_Complete,
 	Tell_LSQ_Addr_Ready,
 	Validate_LSQ_Addr,
 	Attempt_L1_Issue,
@@ -47,7 +48,7 @@ public enum RequestType {
 	Main_Mem_Write,
 	Mem_Response,
 	LSQ_Commit,
-	
+	Main_Mem_Access,
 	//banked memory element's request types
 	CacheBank_Read,
 	CacheBank_Write,
@@ -64,7 +65,9 @@ public enum RequestType {
 	Reply_with_shared_copy,
 	Write_Modified_to_sharedmem, 
 	Main_Mem_Response,
-
+	Mem_Cntrlr_State_Update,
+	Rank_Response,
+	
 	TOKEN,
 	LOCAL_TOKEN,
 	PIPELINE_RESUME,
@@ -88,4 +91,8 @@ public enum RequestType {
 
 	MSHR_Full,
 	Tlb_Miss_Response, CacheLine_Invalidate, Send_Migrate_Block
+	
+	
+	
+	
 }

@@ -61,6 +61,8 @@ import emulatorinterface.SimplerRunnableThread;
 import emulatorinterface.communication.IpcBase;
 
 import emulatorinterface.translator.x86.instruction.InstructionClass;
+import emulatorinterface.translator.x86.instruction.FullInstructionClass;
+
 import generic.CircularPacketQueue;
 
 
@@ -144,8 +146,9 @@ public class SimplerFilePacket extends IpcBase{
 				}
 				catch(EOFException e)
 				{
-					System.out.println("cannot read "+dis);
+					System.out.println("cannot read "+dis+"  "+i);
 					System.exit(0);
+//					maxSize=-1;
 				}
 				if(tmp!=null)
 				{
@@ -156,27 +159,27 @@ public class SimplerFilePacket extends IpcBase{
 					}
 					else if(tmp==TYPE_BLOCK_END)
 					{
-						fromEmulator.enqueue(InstructionClass.TYPE_BLOCK_END, -1,  null);
+						fromEmulator.enqueue(new FullInstructionClass(InstructionClass.TYPE_BLOCK_END,null), -1,  null);
 						blocks++;
 						return i;
 					}
 					else
 					{
 						Integer ip=tmp;
-						InstructionClass packetInHashTable = runner.kernelInstructionsTable.get(ip);
+						FullInstructionClass packetInHashTable = runner.kernelInstructionsTable.get(ip);
 						if(packetInHashTable == null)
 						{
 							misc.Error.showErrorAndExit("did not find the packet for ip : "+ip);
 							
 						}
 				
-						if(packetInHashTable == InstructionClass.INTEGER_LOAD_CONSTANT||
-												packetInHashTable == InstructionClass.INTEGER_STORE_CONSTANT||
-														packetInHashTable == InstructionClass.INTEGER_LOAD_SHARED||
-																packetInHashTable == InstructionClass.INTEGER_STORE_SHARED||packetInHashTable == InstructionClass.FLOATING_POINT_LOAD_CONSTANT||
-																								packetInHashTable == InstructionClass.FLOATING_POINT_STORE_CONSTANT|| 
-																										packetInHashTable == InstructionClass.FLOATING_POINT_LOAD_SHARED||
-																												packetInHashTable == InstructionClass.FLOATING_POINT_STORE_SHARED) 
+						if(packetInHashTable.instructionclass == InstructionClass.INTEGER_LOAD_CONSTANT||
+												packetInHashTable.instructionclass == InstructionClass.INTEGER_STORE_CONSTANT||
+														packetInHashTable.instructionclass == InstructionClass.INTEGER_LOAD_SHARED||
+																packetInHashTable.instructionclass == InstructionClass.INTEGER_STORE_SHARED||packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_LOAD_CONSTANT||
+																								packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_STORE_CONSTANT|| 
+																										packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_LOAD_SHARED||
+																												packetInHashTable.instructionclass == InstructionClass.FLOATING_POINT_STORE_SHARED) 
 
 						{
 							Long ftmp,MemoryAddresses[] = new Long[SimulationConfig.ThreadsPerCTA];
@@ -204,7 +207,7 @@ public class SimplerFilePacket extends IpcBase{
 				}
 				else
 				{
-					//fromEmulator.enqueue(TYPE_KERNEL_END, -2, null, null);
+//					fromEmulator.enqueue(InstructionClass.TYPE_KERNEL_END, -2, null);
 				}
 				
 			}
@@ -213,7 +216,8 @@ public class SimplerFilePacket extends IpcBase{
 		{
 			e.printStackTrace();
 			System.exit(0);
-			fromEmulator.enqueue(InstructionClass.TYPE_BLOCK_END, -1, null);
+		
+			fromEmulator.enqueue(new FullInstructionClass(InstructionClass.TYPE_BLOCK_END,null), -1, null);
 			
 			
 			

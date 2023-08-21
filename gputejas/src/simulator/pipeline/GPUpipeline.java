@@ -21,57 +21,88 @@ package pipeline;
 
 	Contributors:  Seep Goel, Geetika Malhotra, Harinder Pal
 *****************************************************************************/ 
+import net.NOC.CONNECTIONTYPE;
+import config.SystemConfig;
+import main.ArchitecturalComponent;
 import generic.EventQueue;
 import generic.GenericCircularQueue;
+import generic.GlobalClock;
 import generic.Instruction;
 import generic.SM;
 
 public class GPUpipeline {
 
 	SM sm;
-	GPUExecutionEngine containingExecutionEngine;
+	public GPUExecutionEngine containingExecutionEngine;
 	EventQueue eventQ;
 	int coreStepSize;
 	
-	public GPUpipeline(SM sm, EventQueue eventQueue, int i) {
+	public GPUpipeline(SM sm, EventQueue eventQueue) {
 		this.sm= sm;
-		containingExecutionEngine = (GPUExecutionEngine)sm.getExecEngine(i);
+		containingExecutionEngine = (GPUExecutionEngine)sm.getExecEngine();
 		this.eventQ = eventQueue;
 		this.coreStepSize = sm.getStepSize();	//Not Necessary. Global clock hasn't been initialized yet
 												//So, step sizes of the cores hasn't been set.
-												//It will be set when the step sizes of the cores will be set.
-		
-	}
+												//It will be set when the step sizes of the cores will be set
+		}
 
-	public void oneCycleOperation(int i) {
-		
+	static long update = 0;	
+	public void oneCycleOperation() {
+//		long start = System.currentTimeMillis();
+	
 		long start = System.currentTimeMillis();
-		if(containingExecutionEngine.getScheduleUnit().inputToPipeline.size()>0 ){
-			execute(i);
-		}
-		drainEventQueue();
-		if(containingExecutionEngine.getScheduleUnit().inputToPipeline.size()>0){
-			schedule(i);
-		}
-		long end = System.currentTimeMillis();
-		main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].pipe_time += (end - start);
-		if(main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_flag)
+	    
+		
+		long currentTime = GlobalClock.getCurrentTime();
+		
+		if(currentTime % ArchitecturalComponent.reconfInterval == 0 && update < currentTime && SystemConfig.nocConfig.ConnType == CONNECTIONTYPE.OPTICAL)
 		{
-			main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_time += (end - start);
+			update = currentTime;
+			ArchitecturalComponent.laserReconfiguration();
+		} 
+		
+		containingExecutionEngine.WarpTable();
+		containingExecutionEngine.writeback();
+//		System.out.println("the size of the WarpTable is"+containingExecutionEngine.WarpTable.size()+"for sm"+sm.getSM_number());
+		if(containingExecutionEngine.WarpTable.size()>0 ){
+			execute();
 		}
+		drainEvents();
+		if(!containingExecutionEngine.getScheduleUnit().scheduleExecuteLatch.isFull())
+		{readoperands();} 		
+
+		if(containingExecutionEngine.getScheduleUnit().completeWarpPipeline.size()>0){
+//			System.out.println(containingExecutionEngine.getScheduleUnit().completeWarpPipeline.size()+"is the size of Scheduled pipeline here");
+			schedule();
+		}
+//		long end = System.currentTimeMillis();
+//		main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].pipe_time += (end - start);
+//		if(main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_flag)
+//		{
+//			main.Main.runners[Integer.parseInt(Thread.currentThread().getName())].mem_time += (end - start);
+//		}
+//		
 		
 	}
 	
-	private void drainEventQueue(){
-		eventQ.processEvents();		
-	}
-	public void schedule(int i){
-		containingExecutionEngine.getScheduleUnit().performSchedule(this, i);		
-	}
-	public void execute(int i){
-		containingExecutionEngine.getExecuteUnit().performExecute(this,i);
+	private void drainEvents() {
+		// TODO Auto-generated method stub
+		eventQ.processEvents();
+		
 	}
 
+
+	public void schedule(){
+		containingExecutionEngine.getScheduleUnit().performSchedule(this);		
+	}
+	public void execute(){
+		containingExecutionEngine.getExecuteUnit().performExecute(this);
+	}
+
+	public void readoperands(){
+		// TODO Check this also
+	containingExecutionEngine.getOpndColl().step(this);
+	}
 	
 	public boolean isExecutionComplete() {
 		return (containingExecutionEngine.getExecutionComplete());
@@ -94,7 +125,6 @@ public class GPUpipeline {
 
 	
 	public SM getCore() {
-		
 		return sm;
 	}
 

@@ -31,20 +31,23 @@ import java.io.ObjectInputStream;
 
 import java.io.IOException;
 import java.util.Hashtable;
-
+import java.util.concurrent.*;
 import misc.Error;
 import misc.ShutDownHook;
 import config.SimulationConfig;
-import jsr166y.Phaser;
+//import jsr166y.Phaser;
 import config.TpcConfig;
 import config.XMLParser;
 
 
+import emulatorinterface.DramRunnableThread;
 import emulatorinterface.KernelState;
 
 import emulatorinterface.SimplerRunnableThread;
 import emulatorinterface.communication.filePacket.SimplerFilePacket;
 import emulatorinterface.translator.x86.instruction.InstructionClass;
+import emulatorinterface.translator.x86.instruction.FullInstructionClass;
+
 import emulatorinterface.translator.x86.instruction.InstructionClassTable;
 import generic.Statistics;
 
@@ -54,6 +57,8 @@ public class Main {
 
 	// the reader threads. Each thread reads from EMUTHREADS
 	public static SimplerRunnableThread [] runners;
+	public static DramRunnableThread dram;
+	public static boolean allfinished=false;
 	public static SimplerFilePacket ipcBase[];
 	public static volatile boolean statFileWritten = false;
 	public static int [] totalBlocks;
@@ -94,7 +99,7 @@ public class Main {
 		traceFileFolder = arguments[2] + "/" + SimulationConfig.MaxNumJavaThreads; 
 		initializeBlocksPerKernel();
 		initializeKernelHashfiles();
-		
+	
 		final Phaser kernelEnd=new Phaser(SimulationConfig.MaxNumJavaThreads) {
 			protected boolean onAdvance(int phase, int registeredParties) {
 				System.err.println("In onadvance "+phase+ "with registered parties :"+registeredParties);
@@ -141,7 +146,7 @@ public class Main {
 		
 	
 		InstructionClassTable.createInstructionClassHandlerTable();
-		
+		InstructionClassTable.createRegisterTable();
 		for (int i=0; i<SimulationConfig.MaxNumJavaThreads; i++) {
 			
 			
@@ -149,24 +154,28 @@ public class Main {
 		ipcBase[i]=new SimplerFilePacket(i);
 		int tpc_id=i/TpcConfig.NoOfSM;
 		int sm_id=i%TpcConfig.NoOfSM;
+		System.out.println(tpc_id+"TPC id"+"java thread"+i);
+		System.out.println(sm_id+"SM id"+"java thread"+i);
+
 		runners[i] = new SimplerRunnableThread(name,i, ipcBase[i], ArchitecturalComponent.getCores()[tpc_id][sm_id], epochEnd);
 		
 		}
-		
-		Statistics.initStatistics();
-		
+
 		System.out.println("\n\nRunning the simulation !!!");
 		startTime = System.currentTimeMillis();
-	
+		dram=new DramRunnableThread("dram");
+		dram.t.start();
 		startRunnerThreads();
-
+        Statistics.initStatistics();
 		waitForJavaThreads();
 		
 		endTime = System.currentTimeMillis();
+        allfinished=true;      
 		Statistics.printAllStatistics(traceFileFolder,startTime, endTime);
 		int TotalblocksExecuted=0, TotalblocksGiven=0;
 		for(int i=0;i<SimulationConfig.MaxNumJavaThreads;i++){
 			TotalblocksExecuted+=runners[i].blocksExecuted;
+//			System.out.println("NO. of blocks completed are for thread "+i+"blocks executed are"+runners[i].blocksExecuted);
 		}
 		statFileWritten = true;
 		System.out.println("\n\nSimulation completed !!");
@@ -174,7 +183,7 @@ public class Main {
 		System.exit(0);
 	}
 	
-	public static Hashtable<Long, InstructionClass> kernelInstructionsTables[];
+	public static Hashtable<Long, FullInstructionClass> kernelInstructionsTables[];
 	@SuppressWarnings("unchecked")
 	private static void initializeKernelHashfiles() {
 		kernelInstructionsTables=new Hashtable[totalNumKernels];
@@ -184,9 +193,9 @@ public class Main {
 			try {
 				fos = new FileInputStream(Main.traceFileFolder+"/hashfile"+ "_" +i);
 				is = new ObjectInputStream(fos);
-				kernelInstructionsTables[i] = new Hashtable<Long, InstructionClass>();
+				kernelInstructionsTables[i] = new Hashtable<Long, FullInstructionClass>();
 				try {
-					Hashtable<Long, InstructionClass> readObject = (Hashtable<Long,InstructionClass >)is.readObject();
+					Hashtable<Long, FullInstructionClass> readObject = (Hashtable<Long,FullInstructionClass >)is.readObject();
 					kernelInstructionsTables[i].putAll(readObject);
 				} catch (ClassNotFoundException e) {
 					e.printStackTrace();
@@ -228,7 +237,8 @@ public class Main {
 	private static void startRunnerThreads() {
 		for(int i=0;i<SimulationConfig.MaxNumJavaThreads;i++)
 			runners[i].t.start();
-		
+		System.out.println("runners started for thread");
+	//	runners[0].t.start();
 	}
 	
 	public static KernelState currKernel = new KernelState();
@@ -260,10 +270,7 @@ public class Main {
 
 	
 	public static void initializeArchitecturalComponents() {
-
-		ArchitecturalComponent.setCores(ArchitecturalComponent.initCores());
-		ArchitecturalComponent.initMemorySystem(ArchitecturalComponent.getCores());
-
+		ArchitecturalComponent.createChip();
 	}
 
 	private static void checkCommandLineArguments(String arguments[]) {
@@ -290,5 +297,5 @@ public class Main {
 	
 	
 	
-	
-}
+	}
+

@@ -27,11 +27,10 @@ import java.util.Hashtable;
 
 public class InstructionClassTable {
 	private static final Hashtable<String, InstructionClass> integerInstructionClassTable= new Hashtable<String, InstructionClass>(), floatInstructionClassTable= new Hashtable<String, InstructionClass>();
+	private static final Hashtable<InstructionClass, Integer> RegisterTable= new Hashtable<InstructionClass, Integer>();
 	private static final Hashtable<InstructionClass, PTXStaticInstructionHandler> instructionClassHandlerTable = new Hashtable<InstructionClass, PTXStaticInstructionHandler>();
-	public static InstructionClass getInstructionClass(String operation, boolean floatingOperation) {
 
-			
-		
+	public static InstructionClass getInstructionClass(String operation, boolean floatingOperation) {
 		if (operation == null)
 			return InstructionClass.INVALID;
 		
@@ -53,6 +52,54 @@ public class InstructionClassTable {
 
 	}
 	
+	public static void createRegisterTable()
+	{ 
+		RegisterTable.put(InstructionClass.INVALID,0);
+		RegisterTable.put(InstructionClass.INTEGER_LOAD,0);
+		RegisterTable.put(InstructionClass.INTEGER_STORE,0);
+		RegisterTable.put(InstructionClass.INTEGER_LOAD_CONSTANT,0);
+		RegisterTable.put(InstructionClass.INTEGER_STORE_CONSTANT,0);
+		RegisterTable.put(InstructionClass.INTEGER_LOAD_SHARED,0);
+		RegisterTable.put(InstructionClass.INTEGER_STORE_SHARED,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_LOAD,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_STORE,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_LOAD_CONSTANT,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_STORE_CONSTANT,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_LOAD_SHARED,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_STORE_SHARED,0);
+		RegisterTable.put(InstructionClass.INTEGER_PREFETCH,0);
+		RegisterTable.put(InstructionClass.INTEGER_QUERY_ADDRESS,0);
+		RegisterTable.put(InstructionClass.INTEGER_ADDRESS_CONVERT,0);
+		RegisterTable.put(InstructionClass.INTEGER_ALU_NO_IMPLICIT_DESTINATION_TWO_OPERANDS,0);
+		RegisterTable.put(InstructionClass.INTEGER_ALU_NO_IMPLICIT_DESTINATION_THREE_OPERANDS,0);
+		RegisterTable.put(InstructionClass.INTEGER_ALU_NO_IMPLICIT_DESTINATION_FOUR_OPERANDS,0);
+		RegisterTable.put(InstructionClass.INTEGER_ALU_NO_IMPLICIT_DESTINATION_FIVE_OPERANDS,0);
+		RegisterTable.put(InstructionClass.INTEGER_MULTIPLICATION_THREE_OPERANDS,0);
+		RegisterTable.put(InstructionClass.INTEGER_MULTIPLICATION_FOUR_OPERANDS,0);
+		RegisterTable.put(InstructionClass.INTEGER_DIVISION_THREE_OPERANDS,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_PREFETCH,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_ALU_TWO_OPERANDS,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_ALU_THREE_OPERANDS,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_ALU_FOUR_OPERANDS,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_MULTIPLICATION_THREE_OPERANDS,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_MULTIPLICATION_FOUR_OPERANDS,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_DIVISION_THREE_OPERANDS,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_DIVISION_TWO_OPERANDS,0);
+		RegisterTable.put(InstructionClass.FLOATING_POINT_COMPLEX_OPERATION_TWO_OPERANDS,0);
+		RegisterTable.put(InstructionClass.GUARD_PREDICATE,0);
+		RegisterTable.put(InstructionClass.BRANCH,0);
+		RegisterTable.put(InstructionClass.CALL,0);
+		RegisterTable.put(InstructionClass.RETURN,0);
+		RegisterTable.put(InstructionClass.EXIT,0);
+		RegisterTable.put(InstructionClass.TYPE_BRANCH,0);
+		RegisterTable.put(InstructionClass.TYPE_MEM,0);
+		RegisterTable.put(InstructionClass.TYPE_IP,0);
+		RegisterTable.put(InstructionClass.TYPE_BLOCK_END,0);
+		RegisterTable.put(InstructionClass.TYPE_KERNEL_END,0);
+		RegisterTable.put(InstructionClass.MEM_END,0);
+		RegisterTable.put(InstructionClass.MEM_START,0);
+		
+	}
 	public static void createInstructionClassHandlerTable() {
 		// create an empty hash-table for storing object references.
 	
@@ -201,7 +248,7 @@ public class InstructionClassTable {
 				InstructionClass.EXIT,
 				new Exit());
 	}
-	public static void createInstructionClassTable() {
+public static void createInstructionClassTable() {
 		createIntegerInstructionClassTable();
 		createFloatInstructionClassTable();
 		
@@ -466,6 +513,34 @@ String integerLoad[] = "ld|ldu"
 		handler = instructionClassHandlerTable.get(instructionClass);
 
 		return handler;
+	}
+	public static InstructionClass getInstructionClass(String operation,
+			boolean floatingOperation, int[] registers) {
+		// TODO Auto-generated method stub
+		if (operation == null)
+			return InstructionClass.INVALID;
+		
+		InstructionClass instructionClass;
+		if(floatingOperation)
+		{
+			instructionClass = floatInstructionClassTable.get(operation);
+		}
+			
+		else
+		{
+			instructionClass = integerInstructionClassTable.get(operation);
+		}
+
+		if (instructionClass == null)
+			return InstructionClass.INVALID;
+		else
+			return instructionClass;
+		}
+
+	public static int getNofRegisters(InstructionClass instructionClass) {
+		// TODO Auto-generated method stub
+	
+		return RegisterTable.get(instructionClass);
 	}
 
 }

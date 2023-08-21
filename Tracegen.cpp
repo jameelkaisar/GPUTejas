@@ -193,6 +193,7 @@ extern int GPUTejas_main(int argc, char** argv);
 int main(int argc, char** argv)
 {
 	MAX_THREADS = atoi(argv[argc -1]);
+	// cout<<MAX_THREADS;
         TraceGenerator generator;
         ocelot::addTraceGenerator( generator );
         GPUTejas_main(argc-1,argv);

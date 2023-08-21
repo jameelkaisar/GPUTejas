@@ -31,7 +31,7 @@ import generic.Instruction;
 public class Return implements PTXStaticInstructionHandler  {
 	public void handle(long instructionPointer, 
 			/*Operand operand1, Operand operand2, Operand operand3, Operand operand4, Operand operand5,*/
-			ArrayList<Instruction> instructionArrayList/*, Registers tempRegisterNum*/, Packet p ) throws InvalidInstructionException
+			ArrayList<Instruction> instructionArrayList, Packet p ) throws InvalidInstructionException
 	{
 		//In ptx according to the PTX 3.2 ISA manual, this instruction takes no arguments
 		instructionArrayList.add(Instruction.getReturnInstruction());
