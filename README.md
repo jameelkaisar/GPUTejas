@@ -2,10 +2,9 @@
 A Parallel Simulator for GPU Architectures
 
 ## How to run
-See `documentation` folder
+Make sure Docker is installed and running
 
-# New features
-- DRAM
-- Electrical NoC
-- Optical NoC
-- GPU pipeline
+```bash
+docker build -t gputejas .
+docker run --restart unless-stopped -it gputejas /bin/bash
+```
