@@ -20,21 +20,15 @@ RUN wget -O tmp/jdk-7u80-linux-x64.tar.gz https://repo.huaweicloud.com/java/jdk/
 RUN mkdir -p /usr/lib/jvm
 RUN tar -xf tmp/jdk-7u80-linux-x64.tar.gz -C /usr/lib/jvm
 RUN ln -s /usr/lib/jvm/jdk1.7.0_80 /usr/lib/jvm/java-7-oracle
-ENV JAVA_HOME /usr/lib/jvm/java-7-oracle
-ENV PATH $PATH:$JAVA_HOME/bin
 
 # COPY files/apache-ant-1.9.15-bin.zip tmp
 RUN wget -O tmp/apache-ant-1.9.15-bin.zip https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.15-bin.zip
 RUN unzip -d /opt tmp/apache-ant-1.9.15-bin.zip
-ENV ANT_HOME /opt/apache-ant-1.9.15
-ENV PATH $PATH:$ANT_HOME/bin
 
 # COPY files/nvidia-cuda-toolkit_4.0.17.orig.tar.gz tmp
 RUN wget -O tmp/nvidia-cuda-toolkit_4.0.17.orig.tar.gz https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/nvidia-cuda-toolkit/4.0.17-3/nvidia-cuda-toolkit_4.0.17.orig.tar.gz
 RUN tar -xf tmp/nvidia-cuda-toolkit_4.0.17.orig.tar.gz -C tmp
 RUN tmp/nvidia-cuda-toolkit-4.0.17.orig/cudatoolkit_4.0.17_linux_64_ubuntu10.10.run --noexec  --target /usr/local/cuda
-ENV PATH="/usr/local/cuda/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/cuda/lib:${LD_LIBRARY_PATH}"
 
 # COPY files/gputejas.zip tmp
 # RUN unzip -d . tmp/gputejas.zip
@@ -58,14 +52,14 @@ COPY files/floatn.h /usr/include/x86_64-linux-gnu/bits/floatn.h
 RUN nvcc -c tmp/test.cu -odir tmp -arch sm_20
 
 # 32 bit
-# RUN cp so_files_32bit/libocelot.so '/usr/lib/libocelot.so'
+# RUN cp so_files_32bit/libocelot.so /usr/lib/libocelot.so
 # # RUN rm /usr/lib/i386-linux-gnu/libtinfo.so 2>/dev/null || true
-# RUN cp so_files_32bit/libtinfo.so '/usr/lib/i386-linux-gnu/libtinfo.so'
-# RUN cp so_files_32bit/libboost_thread.so.1.54.0 '/usr/lib/i386-linux-gnu/libboost_thread.so.1.54.0'
-# RUN cp so_files_32bit/libboost_system.so.1.54.0 '/usr/lib/i386-linux-gnu/libboost_system.so.1.54.0'
-# RUN cp so_files_32bit/libz.so.1.2.8 '/lib/i386-linux-gnu/libz.so'
+# RUN cp so_files_32bit/libtinfo.so /usr/lib/i386-linux-gnu/libtinfo.so
+# RUN cp so_files_32bit/libboost_thread.so.1.54.0 /usr/lib/i386-linux-gnu/libboost_thread.so.1.54.0
+# RUN cp so_files_32bit/libboost_system.so.1.54.0 /usr/lib/i386-linux-gnu/libboost_system.so.1.54.0
+# RUN cp so_files_32bit/libz.so.1.2.8 /lib/i386-linux-gnu/libz.so
 # # RUN rm /usr/lib/i386-linux-gnu/libGLEW.so.1.10 2>/dev/null || true
-# RUN cp so_files_32bit/libGLEW.so.1.10 '/usr/lib/i386-linux-gnu/libGLEW.so.1.10'
+# RUN cp so_files_32bit/libGLEW.so.1.10 /usr/lib/i386-linux-gnu/libGLEW.so.1.10
 # RUN apt install -y libgl1-mesa-glx
 
 # 64 bit
@@ -80,6 +74,13 @@ RUN cp so_files_64bit/libz.so.1.2.8 /lib/libz.so
 RUN cp so_files_64bit/libGLEW.so.1.10 /usr/lib/libGLEW.so.1.10
 RUN apt install -y libgl1-mesa-glx
 WORKDIR /home
+
+ENV JAVA_HOME /usr/lib/jvm/java-7-oracle
+ENV PATH $PATH:$JAVA_HOME/bin
+ENV ANT_HOME /opt/apache-ant-1.9.15
+ENV PATH $PATH:$ANT_HOME/bin
+ENV PATH $PATH:/usr/local/cuda/bin
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/lib
 
 WORKDIR /home/gputejas/gputejas
 RUN ant clean
