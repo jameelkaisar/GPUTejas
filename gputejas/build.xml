@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project basedir="." default="build" name="Tejas">
-	<!-- change these as required -->
-	    <property name="jar-dir" value="jars"/>    <!-- directory where the jars are generated -->
-	    <property name="jar-name" value="GPUTejas"/>  <!-- name of the jar -->
-	    <property name="main-class" value="main.Main"/> <!-- path to the main class -->
-	    <!-- property name="jar-name" value="Tracesimplifier"/-->
-	    <!-- property name="main-class" value="traceSimplification.TraceSimplifier"/-->
+    <!-- change these as required -->
+    <property name="jar-dir" value="jars"/>   <!-- directory where the jars are generated -->
+    <property name="jar-name" value="GPUTejas"/>   <!-- name of the jar -->
+    <property name="main-class" value="main.Main"/>   <!-- path to the main class -->
+    <property name="trace-jar-name" value="Tracesimplifier"/>   <!-- name of the jar -->
+    <property name="trace-main-class" value="traceSimplification.TraceSimplifier"/>   <!-- path to the main class -->
+
 	<!-- ________________________ -->
 
     <property environment="env"/>
@@ -20,7 +21,6 @@
         <pathelement location="../../eclipse/visualvm-launcher/plugins/org.eclipse.visualvm.launcher.java_1.0.1.jar"/>
         <pathelement location="../../eclipse/visualvm-launcher/plugins/org.eclipse.visualvm.launcher.pde_1.0.1.jar"/>
     </path>
-
 	
     <target name="init">
         <mkdir dir="bin"/>
@@ -53,12 +53,21 @@
             <fileset dir="${ECLIPSE_HOME}/plugins" includes="org.eclipse.jdt.core_*.jar"/>
         </unzip>
     </target>
- <target name="make-jar" depends="build">
+    <target name="make-jar" depends="build">
         <mkdir dir="${jar-dir}"/>
         <jar destfile="${jar-dir}/${jar-name}.jar" basedir="bin">
 			<zipgroupfileset dir="." includes="jsr166y.jar" />
             <manifest>
                 <attribute name="Main-Class" value="${main-class}"/>
+            </manifest>
+        </jar>
+    </target>
+    <target name="make-trace-jar" depends="build">
+        <mkdir dir="${jar-dir}"/>
+        <jar destfile="${jar-dir}/${trace-jar-name}.jar" basedir="bin">
+			<zipgroupfileset dir="." includes="jsr166y.jar" />
+            <manifest>
+                <attribute name="Main-Class" value="${trace-main-class}"/>
             </manifest>
         </jar>
     </target>

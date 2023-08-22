@@ -24,15 +24,15 @@
 	
 	<!--Simulation Parameters-->
 	<Simulation>
-		<MaxNumJavaThreads>8</MaxNumJavaThreads>		<!--Maximum number of Runnable Threads on simulator side-->
-		<MaxNumBlocksPerJavaThread>5000</MaxNumBlocksPerJavaThread>
-		<GPUType>Kepler</GPUType> 						<!--Type of Nvidia GPU: Tesla, Fermi,Kepler,Maxwell-->
+	    	<MaxNumJavaThreads>1</MaxNumJavaThreads>		<!--Maximum number of Runnable Threads on simulator side-->
+	    	<MaxNumBlocksPerJavaThread>5000</MaxNumBlocksPerJavaThread>
+	   	<GPUType>Ampere</GPUType> 						<!--Type of Nvidia GPU: Tesla, Fermi, Kepler, Maxwell, Ampere-->
 		<ThreadsPerCTA>1024</ThreadsPerCTA>
 	</Simulation>
 
 	<!--System Parameters-->
 	<System>
-		<NoOfTPC>4</NoOfTPC>				<!--Number of texture processor clusters in the system-->
+		<NoOfTPC>24</NoOfTPC>				<!--Number of texture processor clusters in the system-->
 		<GlobalClock>
 		<LeakageEnergy>0.0598</LeakageEnergy>
 		<DynamicEnergy>0.0347</DynamicEnergy>
@@ -42,9 +42,9 @@
 		<TPC>
 			<NoOfSM>2</NoOfSM> 				<!--Number of streaming multiprocessors in a TPC-->
 			
-			<!--Streaming Multiprocessor(SM) Parameters-->
+		<!--Streaming multiprocessor(SM) Parameters-->
 			<SM>
-				<Frequency>3600</Frequency>		<!--Operating frequency of the core (in MHz)-->
+				<Frequency>1515</Frequency>		<!--Operating frequency of the core (in MHz)-->
 				<NoOfWarpSchedulers>2</NoOfWarpSchedulers>
 				<NoOfSP>4</NoOfSP> 				<!--Number of streaming processors in a SM-->
 				<WarpSize>32</WarpSize>			<!--Number of threads in a warp-->
@@ -53,14 +53,12 @@
 				<BarrierLatency>2</BarrierLatency>
 				<BarrierUnit>Distributed</BarrierUnit>			<!--Central and distributed-->
 				
-				<!--Streaming Processor(SP) Parameters-->
+				<!--Streaming processor(SP) Parameters-->
 				<SP>
+					<iCache nextLevel="L2" firstlevel = "true" type="iCache" />
 					<NoOfThreadsSupported>32</NoOfThreadsSupported>
-					<Cache>
-						<iCache nextLevel="L2" firstlevel = "true" type="iCache" />
-					</Cache>
 				</SP>	
-			
+				
 				<Cache>
 					<constantCache nextLevel="L2" firstlevel = "true" type="constantCache" />
 					<sharedCache nextLevel="L2" type="sharedCache" />
@@ -78,7 +76,6 @@
 				</ResultsBroadcastBus>
 				
 				<RegisterFile>
-
 					<Bank>
 						<BankSize>40</BankSize>
 						<LeakageEnergy>0.0598</LeakageEnergy>
@@ -106,13 +103,10 @@
 						<LeakageEnergy>0.0598</LeakageEnergy>
 						<DynamicEnergy>0.0347</DynamicEnergy>
 					</Arbiter>
-					
 				</RegisterFile>	
-		</SM>
-			
-			
+			</SM>
 		</TPC>
-		
+
 		<SharedCaches>
 			<Cache name="L2" nextLevel="" type="L2" />	
 		</SharedCaches>
@@ -162,6 +156,7 @@
 			<LeakageEnergy>0.1877</LeakageEnergy>
 			<DynamicEnergy>2.1164</DynamicEnergy>
 		</BUS>
+
 		<MainMemoryController>               <!-- These values are used when controller specified above is DRAM (not SIMPLE) -->
 			<rowBufferPolicy>OpenPage</rowBufferPolicy>		<!-- OpenPage or ClosePage -->
 			<schedulingPolicy>RankThenBankRoundRobin</schedulingPolicy>	<!-- RankThenBankRoundRobin or BankThenRankRoundRobin-->
@@ -221,13 +216,13 @@
 			<NumBuses>1</NumBuses>			
 			<MSHRSize>32</MSHRSize>
 			<BusOccupancy>0</BusOccupancy>
-			<Nuca>NONE</Nuca>
-			<NucaMapping>S</NucaMapping>					
+			<Nuca>NONE</Nuca>	
+		    <NucaMapping>S</NucaMapping>					
 			<LeakagePower>0.1092</LeakagePower>
 			<ReadDynamicPower>0.33964264705</ReadDynamicPower>
 			<WriteDynamicPower>0.33964264705</WriteDynamicPower>
 		</iCache>
-		
+
 		<constantCache>
 			<WriteMode>WT</WriteMode>			
 			<LastLevel>N</LastLevel>			
@@ -249,7 +244,7 @@
 			<ReadDynamicPower>0.33964264705</ReadDynamicPower>
 			<WriteDynamicPower>0.33964264705</WriteDynamicPower>
 		</constantCache>
-		
+
 		<sharedCache>
 			<WriteMode>WB</WriteMode>			
 			<LastLevel>N</LastLevel>			
@@ -271,14 +266,14 @@
 			<ReadDynamicPower>0.33964264705</ReadDynamicPower>
 			<WriteDynamicPower>0.33964264705</WriteDynamicPower>
 		</sharedCache>
-		
+
 		<dCache>
 			<WriteMode>WB</WriteMode>			
-			<LastLevel>Y</LastLevel>			
-			<BlockSize>1024</BlockSize>			
-			<Associativity>1</Associativity>
-			<Size>1024</Size>					
-			<Latency>2</Latency>				
+			<LastLevel>N</LastLevel>			
+			<BlockSize>64</BlockSize>			
+			<Associativity>2</Associativity>
+			<Size>128</Size>					
+			<Latency>5</Latency>				
 			<PortType>FCFS</PortType>				
 			<AccessPorts>1</AccessPorts>			
 			<PortOccupancy>2</PortOccupancy>		
@@ -299,7 +294,7 @@
 			<LastLevel>Y</LastLevel>			
 			<BlockSize>64</BlockSize>			
 			<Associativity>16</Associativity>
-			<Size>8192</Size>				
+			<Size>4096</Size>				
 			<Latency>45</Latency>				
 			<PortType>UL</PortType>				
 			<AccessPorts>2</AccessPorts>			
@@ -314,42 +309,40 @@
 			<LeakagePower>0.65904632352</LeakagePower>
 			<ReadDynamicPower>0.81449264705</ReadDynamicPower>
 			<WriteDynamicPower>0.81449264705</WriteDynamicPower>
-		</L2>
-
+		</L2>	
 	</Library>
 		
 	<OperationLatency>
-		<load>100</load>
-		<store>1</store>
-		<address>1</address>
-		<intALU>1</intALU>
-		<intMUL>2</intMUL>
-		<intDIV>4</intDIV>
-		<floatALU>1</floatALU>
-		<floatMUL>4</floatMUL>
-		<floatDIV>8</floatDIV>
-		<predicate>1</predicate>
-		<branch>1</branch>
-		<call>1</call>
-		<return>1</return>
-		<exit>1</exit>
+			<load>100</load>
+			<store>1</store>
+			<address>1</address>
+			<intALU>1</intALU>
+			<intMUL>2</intMUL>
+			<intDIV>4</intDIV>
+			<floatALU>1</floatALU>
+			<floatMUL>4</floatMUL>
+			<floatDIV>8</floatDIV>
+			<predicate>1</predicate>
+			<branch>1</branch>
+			<call>1</call>
+			<return>1</return>
+			<exit>1</exit>
 	</OperationLatency>
 	
 	<OperationEnergy>
-		<load>0.001</load>
-		<store>0.001</store>
-		<address>0.001</address>
-		<intALU>0.001</intALU>
-		<intMUL>0.001</intMUL>
-		<intDIV>0.001</intDIV>
-		<floatALU>0.001</floatALU>
-		<floatMUL>0.001</floatMUL>
-		<floatDIV>0.001</floatDIV>
-		<predicate>0.001</predicate>
-		<branch>0.001</branch>
-		<call>0.001</call>
-		<return>0.001</return>
-		<exit>0.001</exit>
+			<load>0.001</load>
+			<store>0.001</store>
+			<address>0.001</address>
+			<intALU>0.001</intALU>
+			<intMUL>0.001</intMUL>
+			<intDIV>0.001</intDIV>
+			<floatALU>0.001</floatALU>
+			<floatMUL>0.001</floatMUL>
+			<floatDIV>0.001</floatDIV>
+			<predicate>0.001</predicate>
+			<branch>0.001</branch>
+			<call>0.001</call>
+			<return>0.001</return>
+			<exit>0.001</exit>
 	</OperationEnergy>
-
 </Configuration>
