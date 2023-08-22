@@ -86,6 +86,7 @@ WORKDIR /home/gputejas/gputejas
 RUN ant clean
 RUN ant
 RUN ant make-jar
+RUN ant make-trace-jar
 WORKDIR /home
 
 WORKDIR /home/gputejas
